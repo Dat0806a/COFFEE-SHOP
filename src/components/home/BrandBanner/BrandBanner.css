@@ -1,0 +1,95 @@
+.brand-banner-wrapper {
+  width: 100%;
+  padding: 4px 18px 24px 18px;
+}
+
+.brand-banner-card {
+  position: relative;
+  background: linear-gradient(115deg, #FFFDF8 0%, #FAECDA 22%, #F2D8AC 50%, #E6BF7B 78%, #D4A04B 100%);
+  border-radius: 18px;
+  overflow: hidden;
+  padding: 18px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(60, 40, 20, 0.04), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+  border: 1.2px solid rgba(197, 151, 74, 0.4);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.brand-banner-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 12px rgba(60, 40, 20, 0.07), inset 0 1px 1px rgba(255, 255, 255, 0.9);
+  border-color: #C5974A;
+}
+
+.brand-bg-pattern {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 86% 50%, rgba(214, 165, 80, 0.45) 0%, transparent 58%),
+    linear-gradient(to right, rgba(255, 253, 248, 0.93) 0%, rgba(250, 236, 218, 0.3) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.brand-banner-left {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-sub-tag {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 2.2px;
+  color: #784415;
+  margin-bottom: 2px;
+}
+
+.brand-headline {
+  font-family: var(--font-brand);
+  font-size: 21px;
+  font-weight: 900;
+  color: #2C1808;
+  margin: 0;
+  letter-spacing: 1.2px;
+  line-height: 1.15;
+}
+
+.brand-banner-ornament {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #6E3D12;
+  margin-top: 3px;
+  line-height: 1.2;
+}
+
+.brand-banner-right {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-english-tag {
+  font-family: var(--font-body);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #4E2E14;
+  text-align: right;
+  line-height: 1.35;
+}
+
+.brand-flower-stamp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.9;
+}

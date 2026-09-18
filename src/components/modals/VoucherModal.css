@@ -1,0 +1,154 @@
+.voucher-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(30, 20, 14, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 250;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  animation: fadeIn 0.2s ease;
+}
+
+.voucher-modal-container {
+  width: 100%;
+  max-width: 520px;
+  background-color: #FFFFFF;
+  border-radius: 24px 24px 0 0;
+  max-height: 75vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+  animation: slideUpVoucher 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUpVoucher {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.voucher-modal-header {
+  padding: 18px 20px;
+  border-bottom: 1px solid #ECE4D6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.voucher-modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.voucher-modal-title {
+  font-family: var(--font-heading);
+  font-size: 17px;
+  font-weight: 700;
+  color: #281F17;
+  margin: 0;
+}
+
+.voucher-close-btn {
+  color: #7A6F64;
+  padding: 4px;
+}
+
+.voucher-list-wrap {
+  padding: 16px 20px 28px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.voucher-card-item {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-primary);
+  border: 1px dashed #D6C2A2;
+  border-radius: 14px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.voucher-card-item:hover {
+  background-color: #F5EDE0;
+  border-color: #8C5318;
+}
+
+.voucher-card-item.selected {
+  background-color: #F9F3E8;
+  border: 1.5px solid #8C5318;
+}
+
+.voucher-left-stub {
+  display: flex;
+  flex-direction: column;
+  padding-right: 12px;
+  border-right: 1px dashed #D6C2A2;
+  min-width: 85px;
+}
+
+.stub-discount {
+  font-size: 13px;
+  font-weight: 800;
+  color: #C7521E;
+}
+
+.stub-code {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #6E5336;
+  background-color: rgba(140, 83, 24, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+  width: fit-content;
+}
+
+.voucher-center-info {
+  flex: 1;
+  padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.voucher-info-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2C221B;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.voucher-expiry {
+  font-size: 10.5px;
+  color: #8C8276;
+}
+
+.voucher-right-action {
+  flex-shrink: 0;
+}
+
+.voucher-select-btn {
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  background-color: #271E18;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.voucher-select-btn.active {
+  background-color: #2E5A36; /* Thai Green */
+}

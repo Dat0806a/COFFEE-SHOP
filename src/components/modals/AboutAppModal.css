@@ -1,0 +1,63 @@
+.about-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(28, 18, 10, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1200;
+  animation: aboutFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.about-modal-card {
+  position: relative;
+  background-color: #FAF5EE;
+  border: 1px solid rgba(197, 151, 74, 0.35);
+  border-radius: 24px;
+  width: 100%;
+  max-width: 400px;
+  padding: 26px 20px 22px 20px;
+  box-shadow: 0 16px 40px rgba(28, 18, 10, 0.3);
+  animation: aboutScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.about-modal-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #EDE4D6;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6D5E52;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.about-modal-close-btn:hover {
+  background-color: #DECBB1;
+  color: #281F17;
+}
+
+@keyframes aboutFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes aboutScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}

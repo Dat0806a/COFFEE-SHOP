@@ -1,0 +1,124 @@
+.mini-cart-container {
+  position: fixed;
+  bottom: 84px;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  display: flex;
+  justify-content: center;
+  padding: 0 18px;
+  pointer-events: none;
+}
+
+.mini-cart-pill {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 480px;
+  background: #FFFFFF;
+  border: 1px solid #ECE3D4;
+  border-radius: 9999px;
+  padding: 6px 8px 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 10px 30px rgba(44, 30, 22, 0.16), 0 2px 8px rgba(44, 30, 22, 0.08);
+  animation: slideUpFloat 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes slideUpFloat {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mini-cart-thumb-wrap {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+.mini-cart-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.mini-cart-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background-color: #271E18;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.mini-cart-info {
+  display: flex;
+  flex-direction: column;
+  margin-left: 12px;
+  margin-right: auto;
+}
+
+.mini-cart-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #281F17;
+  line-height: 1.2;
+}
+
+.mini-cart-summary {
+  font-size: 12.5px;
+  color: #7A6F64;
+  margin-top: 1px;
+}
+
+.mini-cart-summary strong {
+  color: #281F17;
+  font-weight: 700;
+}
+
+.mini-cart-checkout-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #8E521B 0%, #764114 100%);
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 11px 20px;
+  border-radius: var(--radius-full);
+  box-shadow: 0 4px 12px rgba(118, 65, 20, 0.3);
+  transition: all var(--transition-normal);
+  flex-shrink: 0;
+}
+
+.mini-cart-checkout-btn:hover {
+  background: linear-gradient(135deg, #9F5D20 0%, #854A18 100%);
+  transform: translateY(-1px);
+}
+
+.checkout-arrow-icon {
+  transition: transform var(--transition-fast);
+}
+
+.mini-cart-checkout-btn:hover .checkout-arrow-icon {
+  transform: translateX(3px);
+}

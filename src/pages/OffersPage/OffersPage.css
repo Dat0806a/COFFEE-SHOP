@@ -1,0 +1,342 @@
+.offers-page {
+  min-height: 100%;
+}
+
+/* Header */
+.offers-header {
+  padding: 18px 18px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.offers-header .page-title {
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 800;
+  color: #281F17;
+  margin: 0;
+}
+
+.offers-header .page-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Featured Promo Hero */
+.featured-hero-wrapper {
+  padding: 0 18px 16px 18px;
+}
+
+.featured-hero-card {
+  position: relative;
+  background: linear-gradient(135deg, #E6D4BD 0%, #D4BA99 50%, #C4A47E 100%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 20px;
+  padding: 16px 18px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(78, 52, 28, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.featured-bg-motif {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 90% 10%, rgba(255, 255, 255, 0.4) 0%, transparent 50%),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.featured-badge-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.featured-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #5C3713;
+  background-color: rgba(255, 255, 255, 0.8);
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+}
+
+.time-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #2F2218;
+}
+
+.featured-title {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 800;
+  color: #273827; /* Thai forest accent */
+  margin: 0;
+  letter-spacing: 0.2px;
+}
+
+.featured-desc {
+  font-size: 12px;
+  color: #4C3C2E;
+  margin: 2px 0 0 0;
+  line-height: 1.35;
+}
+
+.featured-hero-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.featured-code-tag {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #6C4217;
+  letter-spacing: 1px;
+}
+
+.featured-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #271E18;
+  color: #FFFFFF;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
+  font-weight: 700;
+  box-shadow: 0 3px 8px rgba(39, 30, 24, 0.2);
+}
+
+/* Category Filter Tabs */
+.offers-filter-bar {
+  display: flex;
+  gap: 8px;
+  padding: 0 18px 14px 18px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.offers-filter-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-tab-btn {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background-color: #FFFFFF;
+  border: 1px solid #EAE2D4;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5C4F42;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.filter-tab-btn.active {
+  background-color: #271E18;
+  border-color: #271E18;
+  color: #FFFFFF;
+}
+
+/* Voucher Ticket Cards List */
+.voucher-cards-list {
+  padding: 0 18px 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.offer-ticket-card {
+  display: flex;
+  background-color: #FFFFFF;
+  border: 1px solid #EBE3D5;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 3px 10px rgba(60, 40, 20, 0.04);
+  position: relative;
+  transition: transform var(--transition-fast);
+}
+
+.offer-ticket-card:hover {
+  transform: translateY(-2px);
+  border-color: #DEC8A6;
+}
+
+.offer-ticket-card.expired {
+  opacity: 0.6;
+  filter: grayscale(0.5);
+  pointer-events: none;
+}
+
+/* Left Stub */
+.ticket-stub-left {
+  position: relative;
+  background: linear-gradient(180deg, #FBF6EE 0%, #F5EDE0 100%);
+  border-right: 1px dashed #DEC8A6;
+  padding: 14px 12px;
+  min-width: 90px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ticket-value {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #C7521E;
+  line-height: 1.15;
+}
+
+.ticket-min-order {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #8C7F72;
+}
+
+.ticket-cutout-top,
+.ticket-cutout-bottom {
+  position: absolute;
+  right: -8px;
+  width: 15px;
+  height: 15px;
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-full);
+}
+
+.ticket-cutout-top {
+  top: -8px;
+}
+
+.ticket-cutout-bottom {
+  bottom: -8px;
+}
+
+/* Right Content */
+.ticket-content-right {
+  flex: 1;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.ticket-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ticket-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #8C5318;
+  background-color: rgba(140, 83, 24, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ticket-expiry {
+  font-size: 10px;
+  color: #8C8276;
+}
+
+.ticket-description {
+  font-size: 12px;
+  font-weight: 600;
+  color: #281F17;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.ticket-actions-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.ticket-code-pill {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #6C543B;
+  background-color: #FAF7F2;
+  border: 1px solid #ECE3D5;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ticket-buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ticket-save-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid #E0D4C3;
+  font-size: 11px;
+  font-weight: 600;
+  color: #5C4E40;
+}
+
+.ticket-save-btn.saved {
+  background-color: var(--bg-primary);
+  border-color: #8C5318;
+  color: #8C5318;
+}
+
+.ticket-use-btn {
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background-color: #271E18;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ticket-use-btn.applied {
+  background-color: #2E5A36;
+}
+
+.ticket-expired-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #A3978B;
+}
+
+.offers-empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}

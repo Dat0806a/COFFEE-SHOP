@@ -1,0 +1,110 @@
+.developer-global-footer {
+  width: 100%;
+  padding: 12px 18px 16px 18px;
+  margin-top: auto;
+}
+
+.dev-footer-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background-color: rgba(245, 237, 226, 0.6);
+  border: 1px dashed #DFC7A1;
+  border-radius: 16px;
+}
+
+.dev-footer-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform var(--transition-fast);
+}
+
+.dev-footer-main:hover {
+  transform: translateY(-1px);
+}
+
+.dev-footer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #FAF4EB;
+  border: 1px solid rgba(197, 151, 74, 0.3);
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+}
+
+.dev-badge-label {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #8C5318;
+}
+
+.dev-badge-company {
+  font-family: var(--font-brand);
+  font-size: 13px;
+  font-weight: 800;
+  color: #281F17;
+  letter-spacing: 0.5px;
+}
+
+.dev-footer-caption {
+  font-size: 10.5px;
+  color: #8C7F72;
+  font-weight: 500;
+}
+
+/* Quick links */
+.dev-footer-quick-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dev-quick-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #694015;
+  text-decoration: none;
+  background-color: #FFFFFF;
+  border: 1px solid #E5DCCE;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  transition: all var(--transition-fast);
+}
+
+.dev-quick-link:hover {
+  border-color: #C5974A;
+  color: #C7521E;
+  background-color: #FFFDF9;
+  transform: translateY(-1px);
+}
+
+.dev-quick-link:active {
+  transform: scale(0.96);
+}
+
+.dev-link-separator {
+  color: #C5B8A8;
+  font-size: 10px;
+}
+
+.dev-footer-copyright {
+  font-size: 10px;
+  color: #A39688;
+  border-top: 1px solid rgba(223, 199, 161, 0.3);
+  padding-top: 8px;
+  width: 100%;
+}

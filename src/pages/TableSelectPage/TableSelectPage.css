@@ -1,0 +1,221 @@
+.table-select-page {
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 18px 36px 18px;
+}
+
+.table-select-container {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Brand Header */
+.table-brand-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.table-brand-logo-icon {
+  margin-bottom: 8px;
+  filter: drop-shadow(0 2px 6px rgba(155, 108, 40, 0.2));
+}
+
+.table-brand-title {
+  font-family: var(--font-brand);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #593510;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.table-brand-subtitle {
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: #8C5318;
+  margin-top: 4px;
+}
+
+.table-brand-tagline {
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-style: italic;
+  color: var(--text-secondary);
+  margin-top: 3px;
+}
+
+/* Intro Section */
+.table-intro-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+.table-badge-welcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background-color: #FAF4EB;
+  border: 1px solid #DFC7A1;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  color: #8C5318;
+  margin-bottom: 10px;
+}
+
+.table-main-heading {
+  font-family: var(--font-heading);
+  font-size: 24px;
+  font-weight: 800;
+  color: #1A110B;
+  letter-spacing: -0.2px;
+  line-height: 1.25;
+  margin: 0 0 6px 0;
+}
+
+.table-sub-heading {
+  font-size: 14px;
+  font-weight: 600;
+  color: #7A634B;
+  margin: 0;
+}
+
+/* Table Grid */
+.table-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.table-card-btn {
+  background-color: #FFFFFF;
+  border: 1.5px solid #DFC7A1;
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 4px 16px rgba(60, 40, 20, 0.06);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+
+.table-card-btn:hover {
+  transform: translateY(-3px);
+  border-color: #8C5318;
+  box-shadow: 0 8px 24px rgba(60, 40, 20, 0.12);
+  background-color: #FFFDF9;
+}
+
+.table-card-btn:active {
+  transform: scale(0.97);
+}
+
+/* Fifth card spans full width or center */
+.table-card-fifth {
+  grid-column: span 2;
+  max-width: 80%;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.table-card-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.table-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.table-number-digit {
+  font-family: var(--font-brand);
+  font-size: 32px;
+  font-weight: 900;
+  color: #C7521E; /* Thai Terracotta */
+  line-height: 1;
+  letter-spacing: -0.5px;
+}
+
+.table-icon-wrap {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  background-color: #FAF4EB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8C5318;
+}
+
+.table-card-btn:hover .table-icon-wrap {
+  background-color: #8C5318;
+  color: #FFFFFF;
+}
+
+.table-card-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.table-card-label {
+  font-size: 15px;
+  font-weight: 800;
+  color: #281F17;
+}
+
+.table-card-action {
+  font-size: 11px;
+  font-weight: 600;
+  color: #947B62;
+  transition: color var(--transition-fast);
+}
+
+.table-card-btn:hover .table-card-action {
+  color: #C7521E;
+}
+
+/* Footer Note */
+.table-footer-note {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9C856E;
+  text-align: center;
+  line-height: 1.4;
+}
+
+@media (max-width: 360px) {
+  .table-main-heading {
+    font-size: 21px;
+  }
+  .table-number-digit {
+    font-size: 28px;
+  }
+  .table-card-label {
+    font-size: 13.5px;
+  }
+}

@@ -1,0 +1,559 @@
+.account-page {
+  min-height: 100%;
+}
+
+/* Header */
+.account-header {
+  padding: 20px 18px 14px 18px;
+}
+
+.account-profile-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.account-header-switch-btn {
+  margin-left: auto;
+  background: #FAF3E8;
+  border: 1px solid #DFC7A1;
+  color: #8C6F4B;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.account-header-switch-btn:hover {
+  background-color: #2C1808;
+  color: #FFFFFF;
+  border-color: #2C1808;
+  transform: rotate(180deg);
+}
+
+.account-avatar-wrap {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  border: 2px solid #C5974A;
+  box-shadow: 0 3px 10px rgba(197, 151, 74, 0.25);
+  flex-shrink: 0;
+}
+
+.account-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-full);
+}
+
+.tier-badge-icon {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  font-size: 13px;
+  background-color: #FFFFFF;
+  border-radius: var(--radius-full);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.account-profile-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-greeting {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.profile-name {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 800;
+  color: #281F17;
+  margin: 1px 0 3px 0;
+}
+
+.profile-tier-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: rgba(197, 151, 74, 0.12);
+  border: 1px solid rgba(197, 151, 74, 0.3);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #7A4E1A;
+  width: fit-content;
+}
+
+/* Current Table Session Card */
+.current-table-status-wrapper {
+  padding: 0 18px 14px 18px;
+}
+
+.current-table-status-card {
+  background: linear-gradient(135deg, #FFFDF9 0%, #F5ECE0 100%);
+  border: 1px solid rgba(197, 151, 74, 0.35);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(60, 40, 20, 0.04);
+}
+
+.table-status-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.table-status-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background-color: rgba(199, 82, 30, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.table-status-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.table-status-hint {
+  font-size: 11px;
+  color: #7A6F64;
+}
+
+.table-status-name {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 800;
+  color: #281F17;
+}
+
+.change-table-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #FFFFFF;
+  border: 1px solid #D8CEBE;
+  color: #8C5318;
+  padding: 7px 12px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.change-table-action-btn:hover {
+  border-color: #C7521E;
+  color: #C7521E;
+  background-color: #FFF7F2;
+}
+
+.change-table-icon {
+  transition: transform 0.3s ease;
+}
+
+.change-table-action-btn:hover .change-table-icon {
+  transform: rotate(180deg);
+}
+
+/* Membership Card */
+.member-card-wrapper {
+  padding: 0 18px 16px 18px;
+}
+
+.member-card {
+  position: relative;
+  background: linear-gradient(135deg, #382417 0%, #25170E 100%);
+  border-radius: 18px;
+  padding: 18px 20px;
+  color: #FFFFFF;
+  box-shadow: 0 8px 24px rgba(44, 30, 22, 0.2);
+  border: 1px solid rgba(197, 151, 74, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.card-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.card-brand-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-brand-title {
+  font-family: var(--font-brand);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #E8D5B7;
+}
+
+.card-brand-sub {
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: #B68438;
+}
+
+.card-member-tag {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  background-color: rgba(232, 213, 183, 0.15);
+  border: 1px solid rgba(232, 213, 183, 0.3);
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: #E8D5B7;
+}
+
+.card-middle-points {
+  display: flex;
+  flex-direction: column;
+}
+
+.points-label {
+  font-size: 10.5px;
+  color: #BCAE9E;
+}
+
+.points-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.points-number {
+  font-family: var(--font-heading);
+  font-size: 26px;
+  font-weight: 800;
+  color: #F7E7CE;
+}
+
+.points-unit {
+  font-size: 12px;
+  color: #D2C1AA;
+}
+
+/* Progress track */
+.card-progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #CFC2B2;
+}
+
+.progress-track {
+  width: 100%;
+  height: 5px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #B68438 0%, #E8D5B7 100%);
+  border-radius: var(--radius-full);
+}
+
+.progress-hint {
+  font-size: 9.5px;
+  color: #BCAE9E;
+  margin-top: 1px;
+}
+
+/* Quick Actions Grid */
+.quick-actions-section {
+  padding: 0 18px 18px 18px;
+}
+
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.quick-action-btn {
+  background-color: #FFFFFF;
+  border: 1px solid #EAE3D5;
+  border-radius: 14px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 8px rgba(60, 40, 20, 0.03);
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.quick-action-btn:hover {
+  border-color: #C5974A;
+  transform: translateY(-2px);
+}
+
+.quick-icon-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background-color: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quick-action-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #3C3026;
+  text-align: center;
+}
+
+/* Recent Orders */
+.recent-orders-section {
+  padding: 0 18px 18px 18px;
+}
+
+.section-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.section-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  color: #281F17;
+  margin: 0;
+}
+
+.section-link {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #8C5318;
+  cursor: pointer;
+}
+
+.order-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.order-history-card {
+  background-color: #FFFFFF;
+  border: 1px solid #EBE4D6;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.order-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.order-code {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #281F17;
+}
+
+.order-status-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #2E5A36;
+  background-color: rgba(46, 90, 54, 0.1);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.order-card-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  color: #7A6F64;
+}
+
+.order-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #F3ECE1;
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+.order-total-price {
+  font-size: 12px;
+  color: #4A3E34;
+}
+
+.order-total-price strong {
+  color: #C7521E;
+  font-weight: 800;
+}
+
+.order-detail-link {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8C5318;
+}
+
+.no-orders-msg {
+  font-size: 12px;
+  color: #8C8276;
+}
+
+/* Account Settings Menu */
+.account-menu-section {
+  padding: 0 18px 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.account-menu-group {
+  background-color: #FFFFFF;
+  border: 1px solid #EAE3D5;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid #F5EFE6;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.menu-item:last-child {
+  border-bottom: none;
+}
+
+.menu-item:hover {
+  background-color: #FAF7F2;
+}
+
+.menu-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3C3026;
+}
+
+.menu-icon {
+  color: #8C5318;
+}
+
+.menu-chevron {
+  color: #B3A89C;
+}
+
+.menu-value-tag {
+  font-size: 11.5px;
+  color: #8C8276;
+  font-weight: 500;
+}
+
+.menu-item-right-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Logout */
+.logout-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #8C8276;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  transition: color var(--transition-fast);
+}
+
+.logout-btn:hover {
+  color: #C7521E;
+}
+
+/* Subtle Hidden Switch Access (Discreet, matches ivory background, no red, no admin badge) */
+.subtle-access-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2px 0 6px 0;
+}
+
+.subtle-switch-icon-btn {
+  background: none;
+  border: none;
+  color: #C8BCAC;
+  padding: 6px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+
+.subtle-switch-icon-btn:hover {
+  opacity: 1;
+  color: #8C5318;
+  transform: rotate(180deg);
+}
+

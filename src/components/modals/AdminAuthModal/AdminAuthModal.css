@@ -1,0 +1,231 @@
+.admin-auth-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(28, 18, 10, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: authFadeIn 0.2s ease-out;
+}
+
+.admin-auth-modal {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  background-color: #FAF5EE;
+  border: 1px solid #E5DCCE;
+  border-radius: 20px;
+  padding: 28px 24px;
+  box-shadow: 0 16px 40px rgba(44, 24, 8, 0.25);
+  animation: authSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.auth-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #EFE6D8;
+  color: #694015;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.auth-close-btn:hover {
+  background-color: #E2D4C0;
+  color: #2C1808;
+}
+
+.auth-brand-header {
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+.auth-brand-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #8C5318;
+  background-color: #F0E3D0;
+  border: 1px solid rgba(197, 151, 74, 0.3);
+  padding: 3px 10px;
+  border-radius: 20px;
+  margin-bottom: 8px;
+}
+
+.auth-title {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 800;
+  color: #2C1808;
+  margin: 0 0 4px 0;
+}
+
+.auth-subtitle {
+  font-size: 12px;
+  color: #7A6958;
+  margin: 0;
+}
+
+.auth-error-banner {
+  background-color: #FDF2F0;
+  border: 1px solid #F5C6CB;
+  color: #C7521E;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4E341C;
+}
+
+.auth-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background-color: #FFFFFF;
+  border: 1.2px solid #DFC7A1;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.auth-input-wrapper:focus-within {
+  border-color: #C5974A;
+  box-shadow: 0 0 0 3px rgba(197, 151, 74, 0.18);
+}
+
+.auth-input-icon {
+  margin-left: 12px;
+  color: #A39688;
+  flex-shrink: 0;
+}
+
+.auth-input {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  color: #2C1808;
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+.auth-input::placeholder {
+  color: #BDB3A6;
+}
+
+.auth-pwd-toggle {
+  padding: 8px 12px;
+  color: #8C7F72;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-pwd-toggle:hover {
+  color: #2C1808;
+}
+
+.auth-submit-btn {
+  margin-top: 6px;
+  width: 100%;
+  padding: 12px;
+  background-color: #2C1808;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.auth-submit-btn:hover:not(:disabled) {
+  background-color: #4A2B11;
+  transform: translateY(-1px);
+}
+
+.auth-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.auth-spinner {
+  animation: spin 1s linear infinite;
+}
+
+.auth-credential-hint {
+  text-align: center;
+  font-size: 11.5px;
+  color: #7A6958;
+  background-color: rgba(197, 151, 74, 0.08);
+  border: 1px dashed rgba(197, 151, 74, 0.35);
+  padding: 8px 12px;
+  border-radius: 10px;
+  line-height: 1.4;
+}
+
+.auth-credential-hint strong {
+  color: #694015;
+  font-weight: 700;
+}
+
+@keyframes authFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes authSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

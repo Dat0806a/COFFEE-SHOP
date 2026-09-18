@@ -1,0 +1,116 @@
+/* ===================================================
+   ANA CHIANG MAI - VIDEO BOOT SEQUENCE STYLES
+   =================================================== */
+
+.boot-overlay-root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background-color: #000000;
+  z-index: 999999;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  pointer-events: auto;
+  opacity: 1;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity;
+}
+
+.boot-overlay-root.boot-fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Stable Fullscreen Video Layer Container */
+.boot-video-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #000000;
+  overflow: hidden;
+}
+
+/* Video Elements: Stable in DOM, opacity toggled without display/visibility breaks */
+.boot-video-element {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  opacity: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-color: #000000;
+  transition: opacity 0.35s ease-out;
+  will-change: opacity;
+}
+
+.boot-video-element.boot-video-visible {
+  opacity: 1;
+  z-index: 5;
+  pointer-events: auto;
+}
+
+/* Minimalist Clean Loading Indicator */
+.boot-loader-container {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 10;
+  opacity: 1;
+  transition: opacity 0.3s ease-out;
+  pointer-events: none;
+}
+
+.boot-loader-spinner {
+  width: 34px;
+  height: 34px;
+  border: 2.5px solid rgba(197, 151, 74, 0.18);
+  border-top-color: #C5974A;
+  border-radius: 50%;
+  animation: boot-spin 0.85s linear infinite;
+}
+
+.boot-loader-text {
+  font-family: var(--font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(229, 214, 184, 0.65);
+  font-weight: 500;
+}
+
+@keyframes boot-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Accessibility: Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .boot-overlay-root,
+  .boot-video-element {
+    transition: none !important;
+  }
+  .boot-loader-spinner {
+    animation-duration: 2s;
+  }
+}
+
+

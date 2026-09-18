@@ -1,0 +1,225 @@
+.admin-categories-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.categories-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #EAE1D5;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.add-cat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #2C1808;
+  color: #FFFFFF;
+  padding: 9px 18px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.add-cat-btn:hover {
+  background-color: #C7521E;
+  transform: translateY(-1px);
+}
+
+/* Grid */
+.categories-grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.cat-admin-card {
+  background-color: #FFFFFF;
+  border: 1px solid #EAE1D5;
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.cat-admin-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(60, 40, 20, 0.08);
+  border-color: #DFC7A1;
+}
+
+.cat-admin-card.inactive {
+  opacity: 0.65;
+  background-color: #FAF6EF;
+}
+
+.cat-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cat-card-icon-frame {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background-color: #FAF4EB;
+  border: 1px solid #DFC7A1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.cat-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cat-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.cat-title {
+  font-family: var(--font-heading);
+  font-size: 15.5px;
+  font-weight: 800;
+  color: #2C1808;
+  margin: 0;
+}
+
+.cat-order-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8C7F72;
+  background-color: #F5EFE6;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.cat-subtitle-desc {
+  font-size: 11.5px;
+  color: #7A6958;
+  margin: 3px 0 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cat-card-mid {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #FAF6EF;
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.cat-metric-pill {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4E341C;
+}
+
+.cat-status-tag {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.cat-status-tag.active {
+  background-color: #EBF7EE;
+  color: #1E6B3D;
+}
+
+.cat-status-tag.inactive {
+  background-color: #FDF0F0;
+  color: #D32F2F;
+}
+
+.cat-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.cat-btn-action {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid #DFC7A1;
+  background-color: #FFFFFF;
+  color: #4E341C;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.cat-btn-action.edit:hover {
+  background-color: #FAF4EB;
+  color: #8C5318;
+  border-color: #C5974A;
+}
+
+.cat-btn-action.delete:hover {
+  background-color: #FDF0F0;
+  color: #D32F2F;
+  border-color: #F5C6CB;
+}
+
+/* Modal */
+.admin-cat-modal {
+  background-color: #FAF5EE;
+  border-radius: 20px;
+  max-width: 500px;
+  width: 100%;
+  padding: 24px;
+  border: 1px solid #DFC7A1;
+  box-shadow: 0 16px 40px rgba(44, 24, 8, 0.2);
+}
+
+.admin-cat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.delete-warning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background-color: #FFF3CD;
+  border: 1px solid #FFEEBA;
+  color: #856404;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  text-align: left;
+  margin: 12px 0;
+  line-height: 1.4;
+}
+
+.delete-sub-text {
+  font-size: 12px;
+  color: #8C7F72;
+}

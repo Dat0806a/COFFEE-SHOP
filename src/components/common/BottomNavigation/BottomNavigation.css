@@ -1,0 +1,142 @@
+.bottom-nav-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-primary);
+  border-top: 1px solid #EBE3D5;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 -4px 20px rgba(60, 40, 20, 0.05);
+}
+
+.bottom-nav-inner {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 8px 12px 4px 12px;
+}
+
+@media (min-width: 768px) {
+  .bottom-nav-inner {
+    max-width: 680px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .bottom-nav-inner {
+    max-width: 760px;
+  }
+}
+
+.nav-tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: #7A6F64;
+  position: relative;
+  padding: 4px 8px;
+  min-width: 54px;
+  transition: color var(--transition-fast);
+}
+
+.nav-tab-item:hover {
+  color: #271E18;
+}
+
+.nav-tab-item.active {
+  color: #271E18;
+}
+
+.nav-tab-icon {
+  transition: transform var(--transition-fast);
+}
+
+.nav-tab-item.active .nav-tab-icon {
+  stroke-width: 2.2px;
+}
+
+.nav-tab-label {
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.nav-tab-item.active .nav-tab-label {
+  font-weight: 700;
+  color: #271E18;
+}
+
+/* Active bottom line indicator */
+.nav-active-bar {
+  position: absolute;
+  bottom: -2px;
+  width: 18px;
+  height: 2.5px;
+  background-color: #271E18;
+  border-radius: var(--radius-full);
+}
+
+/* Cart Badge */
+.cart-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-cart-badge {
+  position: absolute;
+  top: -4px;
+  right: -8px;
+  background-color: #E53935;
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--bg-primary);
+}
+
+/* Coupon Icon wrapper */
+.coupon-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.coupon-box {
+  width: 22px;
+  height: 18px;
+  border: 1.6px solid currentColor;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* iOS Home Indicator Bar */
+.ios-indicator-bar-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 6px 0;
+}
+
+.ios-indicator-bar {
+  width: 134px;
+  height: 4px;
+  background-color: #1F1712;
+  border-radius: var(--radius-full);
+  opacity: 0.8;
+}

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" width="100%" height="100%">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C79A4B" />
+      <stop offset="100%" stop-color="#8C5318" />
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#2C1808" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <!-- Background Card -->
+  <rect x="10" y="10" width="300" height="300" rx="24" fill="#FFFDF9" stroke="#E6D3B3" stroke-width="2" filter="url(#shadow)"/>
+  
+  <!-- Header Bar -->
+  <rect x="25" y="25" width="270" height="40" rx="12" fill="#FAF3E6"/>
+  <text x="160" y="50" font-family="'Plus Jakarta Sans', sans-serif" font-size="13" font-weight="800" fill="#8C5318" text-anchor="middle" letter-spacing="1">VIETQR • ANA CHIANG MAI</text>
+
+  <!-- Corner Position Markers -->
+  <!-- Top-Left -->
+  <rect x="45" y="85" width="55" height="55" rx="8" fill="none" stroke="#2C1808" stroke-width="6"/>
+  <rect x="57" y="97" width="31" height="31" rx="4" fill="#C79A4B"/>
+  
+  <!-- Top-Right -->
+  <rect x="220" y="85" width="55" height="55" rx="8" fill="none" stroke="#2C1808" stroke-width="6"/>
+  <rect x="232" y="97" width="31" height="31" rx="4" fill="#C79A4B"/>
+  
+  <!-- Bottom-Left -->
+  <rect x="45" y="210" width="55" height="55" rx="8" fill="none" stroke="#2C1808" stroke-width="6"/>
+  <rect x="57" y="222" width="31" height="31" rx="4" fill="#C79A4B"/>
+
+  <!-- QR Simulated Grid Pattern -->
+  <g fill="#2C1808">
+    <rect x="120" y="85" width="12" height="12" rx="2"/>
+    <rect x="140" y="85" width="12" height="25" rx="2"/>
+    <rect x="165" y="85" width="20" height="12" rx="2"/>
+    <rect x="195" y="85" width="12" height="12" rx="2"/>
+
+    <rect x="120" y="105" width="25" height="12" rx="2"/>
+    <rect x="175" y="105" width="12" height="25" rx="2"/>
+    <rect x="195" y="105" width="12" height="12" rx="2"/>
+
+    <rect x="120" y="125" width="12" height="12" rx="2"/>
+    <rect x="140" y="125" width="20" height="12" rx="2"/>
+    <rect x="195" y="125" width="12" height="25" rx="2"/>
+
+    <!-- Middle Cross Rows -->
+    <rect x="45" y="155" width="25" height="12" rx="2"/>
+    <rect x="80" y="155" width="12" height="25" rx="2"/>
+    <rect x="100" y="150" width="12" height="12" rx="2"/>
+    <rect x="120" y="155" width="30" height="12" rx="2"/>
+    <rect x="170" y="155" width="20" height="12" rx="2"/>
+    <rect x="200" y="150" width="12" height="12" rx="2"/>
+    <rect x="220" y="155" width="25" height="12" rx="2"/>
+    <rect x="255" y="155" width="20" height="12" rx="2"/>
+
+    <rect x="45" y="180" width="12" height="15" rx="2"/>
+    <rect x="65" y="180" width="25" height="12" rx="2"/>
+    <rect x="100" y="175" width="15" height="25" rx="2"/>
+    <rect x="125" y="175" width="12" height="12" rx="2"/>
+    <rect x="145" y="180" width="25" height="12" rx="2"/>
+    <rect x="180" y="175" width="12" height="25" rx="2"/>
+    <rect x="200" y="180" width="35" height="12" rx="2"/>
+    <rect x="245" y="180" width="30" height="12" rx="2"/>
+
+    <!-- Bottom Rows -->
+    <rect x="120" y="210" width="12" height="25" rx="2"/>
+    <rect x="140" y="210" width="25" height="12" rx="2"/>
+    <rect x="175" y="210" width="12" height="12" rx="2"/>
+    <rect x="195" y="210" width="30" height="12" rx="2"/>
+    <rect x="235" y="210" width="12" height="25" rx="2"/>
+    <rect x="255" y="210" width="20" height="12" rx="2"/>
+
+    <rect x="140" y="230" width="12" height="35" rx="2"/>
+    <rect x="160" y="235" width="25" height="12" rx="2"/>
+    <rect x="195" y="230" width="12" height="35" rx="2"/>
+    <rect x="215" y="240" width="30" height="12" rx="2"/>
+    <rect x="255" y="240" width="20" height="25" rx="2"/>
+    <rect x="120" y="250" width="12" height="15" rx="2"/>
+    <rect x="160" y="255" width="25" height="12" rx="2"/>
+  </g>
+
+  <!-- Center Thai Café Emblem -->
+  <circle cx="160" cy="160" r="22" fill="#FAF3E6" stroke="#C79A4B" stroke-width="3"/>
+  <text x="160" y="166" font-family="'Plus Jakarta Sans', sans-serif" font-size="14" font-weight="900" fill="#8C5318" text-anchor="middle">ANA</text>
+
+  <!-- Subtitle Tag -->
+  <text x="160" y="295" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="700" fill="#A89485" text-anchor="middle">QUÉT MÃ ĐỂ THANH TOÁN</text>
+</svg>

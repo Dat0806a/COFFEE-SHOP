@@ -1,0 +1,122 @@
+.change-table-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(28, 18, 10, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1200;
+  animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.change-table-modal-card {
+  background-color: #FAF5EE;
+  border: 1px solid rgba(197, 151, 74, 0.3);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 360px;
+  padding: 26px 22px 22px 22px;
+  text-align: center;
+  box-shadow: 0 16px 36px rgba(28, 18, 10, 0.25);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: modalScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.change-table-modal-icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(199, 82, 30, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.change-table-modal-icon {
+  color: #C7521E;
+}
+
+.change-table-modal-title {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 800;
+  color: #281F17;
+  margin: 0 0 6px 0;
+}
+
+.change-table-current-hint {
+  font-size: 12.5px;
+  color: #8C5318;
+  margin: 0 0 8px 0;
+}
+
+.change-table-current-hint strong {
+  color: #281F17;
+}
+
+.change-table-modal-desc {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #6D5E52;
+  margin: 0 0 22px 0;
+}
+
+.change-table-modal-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.change-table-btn {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.change-table-btn.cancel-btn {
+  background-color: #FFFFFF;
+  border: 1px solid #D8CEBE;
+  color: #5C4D41;
+}
+
+.change-table-btn.cancel-btn:hover {
+  background-color: #F1ECE3;
+}
+
+.change-table-btn.confirm-btn {
+  background: linear-gradient(135deg, #C7521E 0%, #A63F12 100%);
+  border: none;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(199, 82, 30, 0.28);
+}
+
+.change-table-btn.confirm-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(199, 82, 30, 0.35);
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
