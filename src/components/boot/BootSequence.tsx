@@ -7,6 +7,7 @@ import {
   hasCompletedOnboarding,
   markOnboardingCompleted
 } from '../../config/bootConfig';
+import { soundService } from '../../services/soundService';
 import './BootSequence.css';
 
 export type BootState = 'loading' | 'intro' | 'transition' | 'onboarding' | 'app';
@@ -18,70 +19,56 @@ interface BootSequenceProps {
 export const BootSequence: React.FC<BootSequenceProps> = ({ children }) => {
   const [bootState, setBootState] = useState<BootState>('loading');
   const [isOverlayMounted, setIsOverlayMounted] = useState<boolean>(true);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [showUnmuteHint, setShowUnmuteHint] = useState<boolean>(false);
 
   const introVideoRef = useRef<HTMLVideoElement | null>(null);
   const onboardingVideoRef = useRef<HTMLVideoElement | null>(null);
+  const userUnlockedAudioRef = useRef<boolean>(false);
 
-  // Safely play HTML5 video without freezing: tries sound first, falls back to smooth video if browser blocks audio autoplay
-  const safePlay = useCallback(async (video: HTMLVideoElement | null, label: string) => {
-    if (!video) return;
-    try {
-      video.muted = false;
-      video.defaultMuted = false;
-      video.volume = 1.0;
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        await playPromise;
-        console.log(`▶ [BootSequence] Playing ${label} with audio`);
-      }
-    } catch (err) {
-      console.warn(`[BootSequence] Autoplay with sound restricted for ${label}, falling back to smooth video:`, err);
-      try {
-        video.muted = true;
-        video.defaultMuted = true;
-        const fallbackPromise = video.play();
-        if (fallbackPromise !== undefined) {
-          await fallbackPromise;
-        }
-        console.log(`▶ [BootSequence] Playing ${label} (smooth playback)`);
-      } catch (fallbackErr) {
-        console.warn(`[BootSequence] Play failed for ${label}:`, fallbackErr);
-      }
-    }
-  }, []);
+  // Helper to get currently active video element
+  const getActiveVideo = useCallback((): HTMLVideoElement | null => {
+    if (bootState === 'intro') return introVideoRef.current;
+    if (bootState === 'onboarding') return onboardingVideoRef.current;
+    return null;
+  }, [bootState]);
 
-  // Unmute currently active video on legitimate user gestures only (click/touch/key)
-  const unmuteActiveVideo = useCallback(() => {
-    const activeVideo = bootState === 'intro' ? introVideoRef.current : (bootState === 'onboarding' ? onboardingVideoRef.current : null);
+  // Aggressive unlock & unmute for active video on user interaction
+  const triggerUnmute = useCallback((rewindIfEarly: boolean = true) => {
+    userUnlockedAudioRef.current = true;
+    soundService.unlockAudio();
+
+    const activeVideo = getActiveVideo();
     if (activeVideo) {
       activeVideo.muted = false;
       activeVideo.defaultMuted = false;
       activeVideo.volume = 1.0;
-      if (activeVideo.paused) {
-        activeVideo.play().catch(() => {
-          activeVideo.muted = true;
-          activeVideo.play().catch(() => {});
+      activeVideo.removeAttribute('muted');
+
+      // If user tapped within the first few seconds of intro, restart from 0 for full audio experience
+      if (rewindIfEarly && bootState === 'intro' && activeVideo.currentTime < 3.5) {
+        try {
+          activeVideo.currentTime = 0;
+        } catch {
+          // ignore seek errors
+        }
+      }
+
+      const p = activeVideo.play();
+      if (p !== undefined) {
+        p.then(() => {
+          setIsMuted(false);
+          setShowUnmuteHint(false);
+        }).catch(() => {
+          // Fallback if still restricted
         });
+      } else {
+        setIsMuted(false);
+        setShowUnmuteHint(false);
       }
     }
-  }, [bootState]);
 
-  // Window-level interaction listeners to immediately unmute video on legitimate user interaction
-  useEffect(() => {
-    const handleInteraction = () => {
-      unmuteActiveVideo();
-    };
-
-    const events = ['click', 'pointerdown', 'mousedown', 'touchstart', 'keydown'];
-    events.forEach(evt => window.addEventListener(evt, handleInteraction, { capture: true, passive: true }));
-
-    return () => {
-      events.forEach(evt => window.removeEventListener(evt, handleInteraction, { capture: true } as unknown as boolean));
-    };
-  }, [unmuteActiveVideo]);
-
-  // Ensure audio is automatically enabled and unmuted with volume 1.0 on initial app launch
-  useEffect(() => {
+    // Also prime both video refs
     if (introVideoRef.current) {
       introVideoRef.current.muted = false;
       introVideoRef.current.defaultMuted = false;
@@ -92,7 +79,84 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ children }) => {
       onboardingVideoRef.current.defaultMuted = false;
       onboardingVideoRef.current.volume = 1.0;
     }
+  }, [getActiveVideo, bootState]);
+
+  // Safely play HTML5 video: attempts full audio playback first, falls back gracefully if browser blocks audio
+  const safePlay = useCallback(async (video: HTMLVideoElement | null, label: string) => {
+    if (!video) return;
+
+    // Reset video state
+    video.muted = !userUnlockedAudioRef.current ? false : false;
+    video.defaultMuted = false;
+    video.volume = 1.0;
+    video.removeAttribute('muted');
+
+    try {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        await playPromise;
+        console.log(`▶ [BootSequence] Playing ${label} with audio`);
+        setIsMuted(false);
+        setShowUnmuteHint(false);
+      }
+    } catch (err) {
+      console.warn(`[BootSequence] Autoplay with sound restricted by mobile browser for ${label}:`, err);
+      // Fallback to muted playback so the screen never gets stuck on black/loading
+      try {
+        video.muted = true;
+        video.defaultMuted = true;
+        const fallbackPromise = video.play();
+        if (fallbackPromise !== undefined) {
+          await fallbackPromise;
+        }
+        console.log(`▶ [BootSequence] Playing ${label} (muted fallback, waiting for user touch)`);
+        setIsMuted(true);
+        setShowUnmuteHint(true);
+      } catch (fallbackErr) {
+        console.warn(`[BootSequence] Fallback play failed for ${label}:`, fallbackErr);
+      }
+    }
   }, []);
+
+  // Window-level interaction listeners to immediately unlock audio on ANY screen touch/click
+  useEffect(() => {
+    const handleGlobalInteraction = () => {
+      if (!userUnlockedAudioRef.current || isMuted) {
+        triggerUnmute(true);
+      }
+    };
+
+    const events = ['click', 'pointerdown', 'mousedown', 'touchstart', 'touchend', 'keydown'];
+    events.forEach(evt => window.addEventListener(evt, handleGlobalInteraction, { capture: true, passive: true }));
+
+    return () => {
+      events.forEach(evt => window.removeEventListener(evt, handleGlobalInteraction, { capture: true } as unknown as boolean));
+    };
+  }, [triggerUnmute, isMuted]);
+
+  // Toggle Sound manually via button
+  const handleToggleSound = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    const activeVideo = getActiveVideo();
+    if (!activeVideo) return;
+
+    if (activeVideo.muted) {
+      triggerUnmute(false);
+    } else {
+      activeVideo.muted = true;
+      setIsMuted(true);
+    }
+  };
+
+  // Skip straight to app
+  const handleSkip = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    console.log('⏩ [BootSequence] User clicked skip, entering app directly');
+    markOnboardingCompleted();
+    if (introVideoRef.current) introVideoRef.current.pause();
+    if (onboardingVideoRef.current) onboardingVideoRef.current.pause();
+    setBootState('app');
+  };
 
   // State Machine Driver: executes side-effects whenever bootState changes
   useEffect(() => {
@@ -207,8 +271,9 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ children }) => {
         <div
           className={`boot-overlay-root ${bootState === 'app' ? 'boot-fade-out' : ''}`}
           id="ana-boot-sequence"
-          onClick={unmuteActiveVideo}
-          onPointerDown={unmuteActiveVideo}
+          onClick={() => triggerUnmute(true)}
+          onTouchStart={() => triggerUnmute(true)}
+          onPointerDown={() => triggerUnmute(true)}
         >
           {/* Stable Video Container */}
           <div className="boot-video-container">
@@ -220,6 +285,8 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ children }) => {
               autoPlay
               playsInline
               webkit-playsinline="true"
+              x5-video-player-type="h5"
+              x5-video-player-fullscreen="true"
               preload="auto"
               disablePictureInPicture
               disableRemotePlayback
@@ -245,6 +312,8 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ children }) => {
               autoPlay
               playsInline
               webkit-playsinline="true"
+              x5-video-player-type="h5"
+              x5-video-player-fullscreen="true"
               preload="auto"
               disablePictureInPicture
               disableRemotePlayback
@@ -261,11 +330,56 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ children }) => {
             />
           </div>
 
+          {/* Top Quick Action Bar: Sound Toggle & Skip Button */}
+          {(bootState === 'intro' || bootState === 'onboarding') && (
+            <div className="boot-top-controls">
+              <button
+                type="button"
+                className={`boot-control-btn boot-sound-btn ${isMuted ? 'boot-btn-muted-pulse' : ''}`}
+                onClick={handleToggleSound}
+                aria-label={isMuted ? 'Bật âm thanh' : 'Tắt âm thanh'}
+              >
+                {isMuted ? '🔇' : '🔊'}
+                <span className="boot-btn-label">{isMuted ? 'Bật tiếng' : 'Âm thanh'}</span>
+              </button>
+
+              <button
+                type="button"
+                className="boot-control-btn boot-skip-btn"
+                onClick={handleSkip}
+                aria-label="Bỏ qua video"
+              >
+                <span>Bỏ qua</span>
+                <span className="boot-skip-arrow">›</span>
+              </button>
+            </div>
+          )}
+
+          {/* High-Visibility Golden Pulsing Unmute Pill when browser restricts cold autoplay sound */}
+          {showUnmuteHint && isMuted && (bootState === 'intro' || bootState === 'onboarding') && (
+            <div
+              className="boot-unmute-prompt-container"
+              onClick={(e) => {
+                e.stopPropagation();
+                triggerUnmute(true);
+              }}
+            >
+              <div className="boot-unmute-pill">
+                <span className="boot-unmute-pulse-ring"></span>
+                <span className="boot-unmute-icon">🔊</span>
+                <div className="boot-unmute-text-group">
+                  <span className="boot-unmute-title">Chạm để bật âm thanh</span>
+                  <span className="boot-unmute-sub">Trải nghiệm âm thanh Chiang Mai trọn vẹn</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Minimalist Loading Screen for 'loading' state while buffering video resources */}
           {bootState === 'loading' && (
             <div className="boot-loader-container">
               <div className="boot-loader-spinner" />
-              <div className="boot-loader-text">Đang tải...</div>
+              <div className="boot-loader-text">Đang tải trải nghiệm...</div>
             </div>
           )}
         </div>

@@ -7,6 +7,29 @@
     <title>ANA CHIANG MAI - Thai Drink & Dessert | Hương vị Thái giữa lòng Việt</title>
     <meta name="description" content="Thưởng thức trà sữa Thái đỏ, xôi xoài, cà phê dừa và đồ tráng miệng chuẩn vị Chiang Mai Thái Lan." />
     
+    <!-- Early Audio Pre-Unlock for Mobile Browsers -->
+    <script>
+      (function() {
+        var unlockAudio = function() {
+          try {
+            var AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+              if (!window.__anaAudioCtx) {
+                window.__anaAudioCtx = new AudioCtx();
+              }
+              if (window.__anaAudioCtx.state === 'suspended') {
+                window.__anaAudioCtx.resume();
+              }
+            }
+          } catch(e) {}
+        };
+        ['click', 'touchstart', 'touchend', 'pointerdown', 'mousedown', 'keydown'].forEach(function(evt) {
+          window.addEventListener(evt, unlockAudio, { capture: true, passive: true });
+          document.addEventListener(evt, unlockAudio, { capture: true, passive: true });
+        });
+      })();
+    </script>
+
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
