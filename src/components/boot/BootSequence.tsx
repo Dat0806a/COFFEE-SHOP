@@ -24,7 +24,12 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ children }) => {
 
   const introVideoRef = useRef<HTMLVideoElement | null>(null);
   const onboardingVideoRef = useRef<HTMLVideoElement | null>(null);
+  
+  // Persistent flag: once the user interacts or enables audio once, it unlocks for ALL videos
+  const bootStateRef = useRef<BootState>(bootState);
+  bootStateRef.current = bootState;
   const userUnlockedAudioRef = useRef<boolean>(false);
+  const userExplicitlyMutedRef = useRef<boolean>(false);
 
   // Helper to get currently active video element
   const getActiveVideo = useCallback((): HTMLVideoElement | null => {
@@ -33,19 +38,59 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ children }) => {
     return null;
   }, [bootState]);
 
-  // Aggressive unlock & unmute for active video on user interaction
-  const triggerUnmute = useCallback((rewindIfEarly: boolean = true) => {
+  // Synchronously prime and unlock audio pipeline on BOTH video elements during user gesture
+  const primeBothVideosAudio = useCallback(() => {
     userUnlockedAudioRef.current = true;
+    userExplicitlyMutedRef.current = false;
     soundService.unlockAudio();
+
+    // 1. Prime Intro Video
+    if (introVideoRef.current) {
+      introVideoRef.current.muted = false;
+      introVideoRef.current.defaultMuted = false;
+      introVideoRef.current.volume = 1.0;
+      introVideoRef.current.removeAttribute('muted');
+    }
+
+    // 2. Prime Onboarding Video within the SAME user gesture stack frame (Crucial for iOS Safari / Android)
+    if (onboardingVideoRef.current) {
+      onboardingVideoRef.current.muted = false;
+      onboardingVideoRef.current.defaultMuted = false;
+      onboardingVideoRef.current.volume = 1.0;
+      onboardingVideoRef.current.removeAttribute('muted');
+
+      // If we are still in intro/loading, briefly prime the onboarding audio pipeline so mobile browser authorizes it forever
+      if (bootStateRef.current !== 'onboarding' && onboardingVideoRef.current.paused) {
+        try {
+          const primePromise = onboardingVideoRef.current.play();
+          if (primePromise !== undefined) {
+            primePromise.then(() => {
+              // Immediately pause so it stays at 0:00, ready for the transition
+              if (onboardingVideoRef.current && bootStateRef.current !== 'onboarding') {
+                onboardingVideoRef.current.pause();
+                onboardingVideoRef.current.currentTime = 0;
+              }
+            }).catch(() => {
+              // Ignore prime error
+            });
+          }
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
+    setIsMuted(false);
+    setShowUnmuteHint(false);
+  }, [bootState]);
+
+  // Aggressive unlock & unmute on any user touch/click: activates audio on BOTH videos permanently
+  const triggerUnmute = useCallback((rewindIfEarly: boolean = true) => {
+    primeBothVideosAudio();
 
     const activeVideo = getActiveVideo();
     if (activeVideo) {
-      activeVideo.muted = false;
-      activeVideo.defaultMuted = false;
-      activeVideo.volume = 1.0;
-      activeVideo.removeAttribute('muted');
-
-      // If user tapped within the first few seconds of intro, restart from 0 for full audio experience
+      // If user tapped within the first few seconds of intro, restart from 0:00 for the full musical experience
       if (rewindIfEarly && bootState === 'intro' && activeVideo.currentTime < 3.5) {
         try {
           activeVideo.currentTime = 0;
@@ -60,48 +105,38 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ children }) => {
           setIsMuted(false);
           setShowUnmuteHint(false);
         }).catch(() => {
-          // Fallback if still restricted
+          // In rare case browser still denies
         });
-      } else {
-        setIsMuted(false);
-        setShowUnmuteHint(false);
       }
     }
+  }, [primeBothVideosAudio, getActiveVideo, bootState]);
 
-    // Also prime both video refs
-    if (introVideoRef.current) {
-      introVideoRef.current.muted = false;
-      introVideoRef.current.defaultMuted = false;
-      introVideoRef.current.volume = 1.0;
-    }
-    if (onboardingVideoRef.current) {
-      onboardingVideoRef.current.muted = false;
-      onboardingVideoRef.current.defaultMuted = false;
-      onboardingVideoRef.current.volume = 1.0;
-    }
-  }, [getActiveVideo, bootState]);
-
-  // Safely play HTML5 video: attempts full audio playback first, falls back gracefully if browser blocks audio
+  // Safely play HTML5 video: respects user's unlocked audio preference across all videos
   const safePlay = useCallback(async (video: HTMLVideoElement | null, label: string) => {
     if (!video) return;
 
-    // Reset video state
-    video.muted = !userUnlockedAudioRef.current ? false : false;
-    video.defaultMuted = false;
+    const shouldPlayWithAudio = userUnlockedAudioRef.current && !userExplicitlyMutedRef.current;
+
+    video.muted = !shouldPlayWithAudio;
+    video.defaultMuted = !shouldPlayWithAudio;
     video.volume = 1.0;
-    video.removeAttribute('muted');
+    if (shouldPlayWithAudio) {
+      video.removeAttribute('muted');
+    }
 
     try {
       const playPromise = video.play();
       if (playPromise !== undefined) {
         await playPromise;
-        console.log(`▶ [BootSequence] Playing ${label} with audio`);
-        setIsMuted(false);
-        setShowUnmuteHint(false);
+        console.log(`▶ [BootSequence] Playing ${label} (Audio: ${!video.muted ? 'ON' : 'MUTED'})`);
+        if (!video.muted) {
+          setIsMuted(false);
+          setShowUnmuteHint(false);
+        }
       }
     } catch (err) {
-      console.warn(`[BootSequence] Autoplay with sound restricted by mobile browser for ${label}:`, err);
-      // Fallback to muted playback so the screen never gets stuck on black/loading
+      console.warn(`[BootSequence] Autoplay restricted for ${label}, falling back:`, err);
+      // If browser blocked unmuted autoplay on initial cold start, fall back to smooth video and prompt user
       try {
         video.muted = true;
         video.defaultMuted = true;
@@ -109,16 +144,19 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ children }) => {
         if (fallbackPromise !== undefined) {
           await fallbackPromise;
         }
-        console.log(`▶ [BootSequence] Playing ${label} (muted fallback, waiting for user touch)`);
-        setIsMuted(true);
-        setShowUnmuteHint(true);
+        console.log(`▶ [BootSequence] Playing ${label} (muted fallback, ready for single tap)`);
+        // Only show unmute hint if user hasn't explicitly muted
+        if (!userExplicitlyMutedRef.current) {
+          setIsMuted(true);
+          setShowUnmuteHint(true);
+        }
       } catch (fallbackErr) {
         console.warn(`[BootSequence] Fallback play failed for ${label}:`, fallbackErr);
       }
     }
   }, []);
 
-  // Window-level interaction listeners to immediately unlock audio on ANY screen touch/click
+  // Global window-level interaction listener: ANY first tap on the screen permanently unlocks both videos
   useEffect(() => {
     const handleGlobalInteraction = () => {
       if (!userUnlockedAudioRef.current || isMuted) {
@@ -140,11 +178,16 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ children }) => {
     const activeVideo = getActiveVideo();
     if (!activeVideo) return;
 
-    if (activeVideo.muted) {
+    if (activeVideo.muted || isMuted) {
+      // Unmute BOTH videos
       triggerUnmute(false);
     } else {
-      activeVideo.muted = true;
+      // Mute BOTH videos
+      userExplicitlyMutedRef.current = true;
+      if (introVideoRef.current) introVideoRef.current.muted = true;
+      if (onboardingVideoRef.current) onboardingVideoRef.current.muted = true;
       setIsMuted(true);
+      setShowUnmuteHint(false);
     }
   };
 
@@ -180,6 +223,13 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ children }) => {
           setBootState('app');
         } else {
           console.log('🎬 [BootSequence] Transition ended, starting onboarding (bg.mp4)');
+          // Ensure onboarding video has the exact audio unmuted state from intro
+          if (onboardingVideoRef.current && userUnlockedAudioRef.current && !userExplicitlyMutedRef.current) {
+            onboardingVideoRef.current.muted = false;
+            onboardingVideoRef.current.defaultMuted = false;
+            onboardingVideoRef.current.volume = 1.0;
+            onboardingVideoRef.current.removeAttribute('muted');
+          }
           setBootState('onboarding');
         }
       }, MIN_TRANSITION_MS);
@@ -369,7 +419,7 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ children }) => {
                 <span className="boot-unmute-icon">🔊</span>
                 <div className="boot-unmute-text-group">
                   <span className="boot-unmute-title">Chạm để bật âm thanh</span>
-                  <span className="boot-unmute-sub">Trải nghiệm âm thanh Chiang Mai trọn vẹn</span>
+                  <span className="boot-unmute-sub">Mở âm thanh trọn vẹn cho cả 2 video</span>
                 </div>
               </div>
             </div>
