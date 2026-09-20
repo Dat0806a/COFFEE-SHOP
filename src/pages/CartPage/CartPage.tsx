@@ -40,13 +40,11 @@ interface CartPageProps {
 }
 
 export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToMyOrders }) => {
-  const { currentTable, sessionOrderIds, addSessionOrderId } = useTableSession();
+  const { currentTable, sessionOrderIds, addSessionOrderId, orderSessionId } = useTableSession();
   const {
     updateCustomerOrder,
     cancelCustomerOrder,
     submitCustomerCart,
-    appendItemsToOrder,
-    getTableOpenOrder,
     orders,
     products,
     editingOrderId,
@@ -68,38 +66,39 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
     applyVoucher,
     orderNote,
     setOrderNote,
-    loadOrderIntoCart,
-    appendToOrderId,
-    setAppendToOrderId
+    loadOrderIntoCart
   } = useCart();
 
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
   const tableNumber = currentTable?.tableNumber || 1;
 
-  // Retrieve stored active order ID for this table
+  // Retrieve stored active order ID for this login session (isolated per session & per tab)
   const [activeOrderId, setActiveOrderId] = useState<string | null>(() => {
     try {
-      return localStorage.getItem(`ana_active_order_table_${currentTable?.tableNumber || 1}`) || null;
+      if (typeof window !== 'undefined' && window.sessionStorage && orderSessionId) {
+        return sessionStorage.getItem(`ana_active_order_session_${orderSessionId}`) || null;
+      }
+      return null;
     } catch {
       return null;
     }
   });
 
+  // Keep activeOrderId synced if orderSessionId changes
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage && orderSessionId) {
+        setActiveOrderId(sessionStorage.getItem(`ana_active_order_session_${orderSessionId}`) || null);
+      } else {
+        setActiveOrderId(null);
+      }
+    } catch {
+      setActiveOrderId(null);
+    }
+  }, [orderSessionId]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-
-  // Target order to append items into if in Add More Mode
-  const appendTargetOrder = appendToOrderId
-    ? orders.find((o) => o.id === appendToOrderId) || null
-    : null;
-
-  const isTargetOrderActive = Boolean(
-    appendTargetOrder &&
-    appendTargetOrder.status !== 'COMPLETED' &&
-    appendTargetOrder.status !== 'CANCELLED'
-  );
-
-  const isAddMoreMode = Boolean(isTargetOrderActive && !editingOrderId);
 
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
   const [paymentMethodError, setPaymentMethodError] = useState<string | null>(null);
@@ -127,18 +126,20 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
       o.status === 'READY'
   ) || null;
 
-  // Resolved placed order to track: only when explicitly set/tracked
-  const currentPlacedOrder = activeOrderId
+  // Resolved placed order to track: only when explicitly set/tracked AND belongs to current session
+  const currentPlacedOrder = (activeOrderId && sessionOrderIds.includes(activeOrderId))
     ? orders.find((o) => o.id === activeOrderId) || null
     : null;
 
   const handleSetActiveOrderId = (id: string | null) => {
     setActiveOrderId(id);
     try {
-      if (id) {
-        localStorage.setItem(`ana_active_order_table_${tableNumber}`, id);
-      } else {
-        localStorage.removeItem(`ana_active_order_table_${tableNumber}`);
+      if (typeof window !== 'undefined' && window.sessionStorage && orderSessionId) {
+        if (id) {
+          sessionStorage.setItem(`ana_active_order_session_${orderSessionId}`, id);
+        } else {
+          sessionStorage.removeItem(`ana_active_order_session_${orderSessionId}`);
+        }
       }
     } catch {
       // ignore
@@ -149,16 +150,14 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
     ? orders.find((o) => o.id === editingOrderId) || null
     : null;
 
-  // Auto-reset appendToOrderId if the target order is already completed or cancelled
+  // Auto-reset activeOrderId if order has been expired and deleted
   useEffect(() => {
-    if (appendToOrderId && appendTargetOrder && (appendTargetOrder.status === 'COMPLETED' || appendTargetOrder.status === 'CANCELLED')) {
-      setAppendToOrderId(null);
+    if (activeOrderId && orders.length > 0 && !orders.some((o) => o.id === activeOrderId)) {
+      handleSetActiveOrderId(null);
     }
-  }, [appendToOrderId, appendTargetOrder, setAppendToOrderId]);
+  }, [activeOrderId, orders]);
 
-  const openOrder = getTableOpenOrder(tableNumber);
-
-  const { showError, showAlert, showWarning, showSuccess, showConfirm } = useDialog();
+  const { showError, showWarning, showSuccess, showConfirm } = useDialog();
 
   const handlePromptClearCart = () => {
     showConfirm({
@@ -299,62 +298,8 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
         return;
       }
 
-      // If in ADD MORE MODE:
-      if (isAddMoreMode && appendTargetOrder) {
-        if (appendTargetOrder.status === 'CANCELLED') {
-          showError({
-            title: 'Đơn hàng đã bị hủy',
-            message: 'Đơn hàng này đã bị hủy nên không thể tiếp tục gọi thêm món.'
-          });
-          setAppendToOrderId(null);
-          setIsSubmitting(false);
-          return;
-        }
-
-        const paymentMethod = selectedPaymentMethod || 'CASH';
-        const appendTotal = Math.max(0, totalAmount - effectiveDiscount);
-
-        const res = await appendItemsToOrder({
-          orderId: appendTargetOrder.id,
-          items: orderItems,
-          deltaSubtotal: totalAmount,
-          deltaDiscount: effectiveDiscount,
-          deltaTotal: appendTotal,
-          paymentMethod,
-          paymentProofFile: proofFile,
-          note: orderNote.trim() || undefined,
-          voucherCode: appliedVoucher?.code
-        });
-
-        if (!res.success) {
-          showError({
-            title: 'Không thể thêm món',
-            message: res.error || 'Có lỗi khi thêm món vào đơn hàng.'
-          });
-          setIsSubmitting(false);
-          return;
-        }
-
-        showSuccess({
-          title: 'Gọi thêm món thành công!',
-          message: `Các món mới đã được thêm vào đơn hàng #${appendTargetOrder.orderNumber}!`
-        });
-
-        clearCart();
-        setAppendToOrderId(null);
-        setProofFile(null);
-        setProofPreviewUrl(null);
-        setSelectedPaymentMethod(null);
-        setPaymentMethodError(null);
-        setFileError(null);
-        addSessionOrderId(appendTargetOrder.id);
-        handleSetActiveOrderId(appendTargetOrder.id);
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Normal Checkout:
-      const paymentMethod = selectedPaymentMethod || openOrder?.paymentMethod || 'CASH';
+      // Normal Checkout: ALWAYS creates a new order!
+      const paymentMethod = selectedPaymentMethod || 'CASH';
       const actualTotal = Math.max(0, totalAmount - discountAmount);
 
       const result = await submitCustomerCart({
@@ -367,6 +312,7 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
         note: orderNote.trim() || undefined,
         voucherCode: appliedVoucher?.code,
         paymentMethod,
+        orderSessionId: orderSessionId || undefined,
         items: orderItems
       });
 
@@ -379,21 +325,14 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
         }
       }
 
-      if (result.wasConfirmed) {
-        showAlert({
-          title: 'Đơn hàng mới đã được tạo',
-          message: `Đơn hàng trước của bàn đã được quán xác nhận. Các món bạn vừa chọn đã được tạo thành đơn mới #${result.order.orderNumber}!`
-        });
-      } else if (result.isAppended) {
-        showSuccess({
-          title: 'Thêm món thành công',
-          message: `Các món mới đã được thêm vào đơn hàng #${result.order.orderNumber} của bàn!`
-        });
-      }
-
       if (result.order?.id) {
         addSessionOrderId(result.order.id);
       }
+
+      showSuccess({
+        title: 'Đặt hàng thành công!',
+        message: `Đơn hàng #${result.order.orderNumber} của bạn đã được gửi tới quán!`
+      });
 
       clearCart();
       setProofFile(null);
@@ -1027,14 +966,7 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
             <button
               className="success-continue-btn"
               onClick={() => {
-                if (currentPlacedOrder.status === 'COMPLETED' || currentPlacedOrder.status === 'CANCELLED') {
-                  handleSetActiveOrderId(null);
-                  setAppendToOrderId(null);
-                  clearCart();
-                  onExploreMenu();
-                  return;
-                }
-                setAppendToOrderId(currentPlacedOrder.id);
+                handleSetActiveOrderId(null);
                 clearCart();
                 onExploreMenu();
               }}
@@ -1114,12 +1046,6 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
     );
   }
 
-  const orderNumberPreview = isAddMoreMode && appendTargetOrder
-    ? appendTargetOrder.orderNumber.replace('ANA-', '')
-    : openOrder
-    ? openOrder.orderNumber.replace('ANA-', '')
-    : '1025';
-
   return (
     <div className="cart-page">
       {/* Edit Mode Top Banner */}
@@ -1135,52 +1061,13 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
         </div>
       )}
 
-      {/* Add More Mode Top Banner */}
-      {isAddMoreMode && appendTargetOrder && (
-        <div className="cart-add-more-mode-banner">
-          <div className="add-more-banner-left">
-            <span className="add-more-banner-tag">➕ GỌI THÊM MÓN</span>
-            <div className="add-more-banner-text">
-              <span>Đang thêm món vào đơn <strong>#{appendTargetOrder.orderNumber}</strong> ({appendTargetOrder.tableName})</span>
-              <span className="add-more-sub">Chỉ thanh toán số tiền của các món gọi thêm này.</span>
-            </div>
-          </div>
-          <button
-            className="add-more-cancel-btn"
-            onClick={() => {
-              showConfirm({
-                title: 'Hủy gọi thêm vào đơn?',
-                message: `Bạn có muốn hủy chế độ gọi thêm vào đơn #${appendTargetOrder.orderNumber} và chuyển sang tạo đơn mới?`,
-                confirmText: 'Tạo đơn mới',
-                cancelText: 'Giữ lại',
-                isDestructive: true,
-                onConfirm: () => setAppendToOrderId(null)
-              });
-            }}
-          >
-            <span>Tạo đơn mới</span>
-          </button>
-        </div>
-      )}
-
-      {/* Open Order Append Banner (only if not in explicit add-more mode) */}
-      {!isAddMoreMode && openOrder && !editingOrderId && (
-        <div className="cart-open-order-banner">
-          <Clock size={16} className="open-order-banner-icon" />
-          <div className="open-order-banner-text">
-            <span>Bàn của bạn đang có đơn <strong>#{openOrder.orderNumber}</strong> (Đã gửi).</span>
-            <span className="open-order-sub">Các món bạn chọn sẽ được tự động thêm vào đơn này.</span>
-          </div>
-        </div>
-      )}
-
-      {/* Notice if table has an ongoing order already confirmed or being prepared */}
-      {!isAddMoreMode && !openOrder && tableProcessingOrder && !editingOrderId && (
+      {/* Notice if table has an ongoing order in progress */}
+      {tableProcessingOrder && !editingOrderId && (
         <div className="cart-open-order-banner new-sub-order-banner">
           <CheckCircle2 size={16} className="open-order-banner-icon" />
           <div className="open-order-banner-text">
-            <span>Đơn <strong>#{tableProcessingOrder.orderNumber}</strong> trước đó đang được phục vụ.</span>
-            <span className="open-order-sub">Các món bạn vừa chọn sẽ được tạo thành đơn gọi món tiếp theo.</span>
+            <span>Đơn <strong>#{tableProcessingOrder.orderNumber}</strong> đang được phục vụ tại bàn.</span>
+            <span className="open-order-sub">Các món bạn chọn sẽ được tạo thành đơn gọi món mới.</span>
           </div>
         </div>
       )}
@@ -1189,13 +1076,7 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
       <header className="cart-header">
         <div className="cart-header-left">
           <h1 className="cart-title">
-            {editingOrderId
-              ? 'Sửa món trong đơn'
-              : isAddMoreMode && appendTargetOrder
-              ? `Gọi thêm vào #${appendTargetOrder.orderNumber}`
-              : openOrder
-              ? 'Gọi thêm món'
-              : 'Giỏ hàng'}
+            {editingOrderId ? 'Sửa món trong đơn' : 'Giỏ hàng'}
           </h1>
           <span className="cart-count-badge">{totalCount} món</span>
         </div>
@@ -1426,7 +1307,7 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
                   </div>
                   <div className="transfer-info-row">
                     <span>Nội dung chuyển khoản:</span>
-                    <strong className="transfer-content-code">ANA{orderNumberPreview} BAN{tableNumber}</strong>
+                    <strong className="transfer-content-code">ANA BAN{tableNumber}</strong>
                   </div>
                 </div>
 
@@ -1499,9 +1380,7 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
           <div className="summary-divider" />
 
           <div className="summary-row total">
-            <span className="summary-total-label">
-              {isAddMoreMode ? 'Tổng cần thanh toán' : 'Tổng cộng'}
-            </span>
+            <span className="summary-total-label">Tổng cộng</span>
             <span className="summary-total-value">{effectiveTotal}K</span>
           </div>
         </div>
@@ -1510,7 +1389,7 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
       {/* 7. Sticky Bottom Checkout CTA */}
       <div className="cart-checkout-sticky-bar">
         <button
-          className={`cart-checkout-btn ${editingOrderId ? 'edit-mode-btn' : isAddMoreMode ? 'add-more-mode-btn' : openOrder ? 'append-mode-btn' : ''}`}
+          className={`cart-checkout-btn ${editingOrderId ? 'edit-mode-btn' : ''}`}
           onClick={handleCheckout}
           disabled={isSubmitting}
         >
@@ -1518,13 +1397,7 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
             <>
               <Loader2 size={16} className="auth-spinner" />
               <span>
-                {editingOrderId
-                  ? 'Đang lưu thay đổi...'
-                  : isAddMoreMode
-                  ? 'Đang thêm món vào đơn...'
-                  : openOrder
-                  ? 'Đang thêm món vào đơn...'
-                  : 'Đang gửi đơn tới quán...'}
+                {editingOrderId ? 'Đang lưu thay đổi...' : 'Đang gửi đơn tới quán...'}
               </span>
             </>
           ) : (
@@ -1532,10 +1405,6 @@ export const CartPage: React.FC<CartPageProps> = ({ onExploreMenu, onNavigateToM
               <span>
                 {editingOrderId
                   ? `Lưu thay đổi đơn hàng • ${finalTotal}K`
-                  : isAddMoreMode && appendTargetOrder
-                  ? `Xác nhận gọi thêm vào #${appendTargetOrder.orderNumber} • ${effectiveTotal}K`
-                  : openOrder
-                  ? `Thêm món vào đơn #${openOrder.orderNumber} • ${finalTotal}K`
                   : `Đặt món • ${finalTotal}K`}
               </span>
               <ArrowRight size={16} />

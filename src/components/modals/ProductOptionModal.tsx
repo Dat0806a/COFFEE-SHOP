@@ -57,7 +57,15 @@ export const ProductOptionModal: React.FC<ProductOptionModalProps> = ({
 
         {/* Modal Header Image */}
         <div className="modal-image-wrap">
-          <img src={product.image} alt={product.name} className="modal-product-img" />
+          <img
+            src={product.image}
+            alt={product.name}
+            className="modal-product-img"
+            onError={(e) => {
+              if (e.currentTarget.src.endsWith('/coffee_img/1.png')) return;
+              e.currentTarget.src = '/coffee_img/1.png';
+            }}
+          />
           <button
             className={`modal-fav-btn ${favorite ? 'favorited' : ''}`}
             onClick={() => toggleFavorite(product.id)}

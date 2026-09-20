@@ -14,34 +14,336 @@
   gap: 12px;
 }
 
+.revenue-controls-cluster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Month Stepper */
+.month-stepper-wrap {
+  display: flex;
+  align-items: center;
+  background-color: #FFFFFF;
+  border: 1.2px solid #DFC7A1;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(44, 24, 8, 0.04);
+}
+
+.month-step-btn {
+  background: transparent;
+  border: none;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6E5C4B;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.month-step-btn:hover {
+  background-color: #FAF2E3;
+  color: #2C1808;
+}
+
+.month-stepper-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+}
+
+.stepper-icon {
+  color: #C5974A;
+}
+
+.month-select-dropdown {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  font-weight: 800;
+  color: #2C1808;
+  outline: none;
+  cursor: pointer;
+  padding: 6px 2px;
+}
+
 .revenue-year-picker-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
   background-color: #FFFFFF;
   border: 1.2px solid #DFC7A1;
-  padding: 6px 14px;
+  padding: 6px 12px;
   border-radius: 12px;
-}
-
-.picker-icon {
-  color: #8C5318;
-}
-
-.picker-label {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #6E5C4B;
 }
 
 .year-select-dropdown {
   background: transparent;
   border: none;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 800;
   color: #2C1808;
   outline: none;
   cursor: pointer;
+}
+
+.cleanup-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #FAF4EB;
+  border: 1.2px solid #C5974A;
+  color: #6E4018;
+  padding: 7px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.cleanup-sync-btn:hover:not(:disabled) {
+  background-color: #2C1808;
+  color: #FFFFFF;
+  border-color: #2C1808;
+}
+
+.cleanup-sync-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spin-anim {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Month Status Tags */
+.month-status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+.month-status-tag.realtime {
+  background-color: #FEF3C7;
+  color: #92400E;
+  border: 1px solid rgba(146, 64, 14, 0.2);
+}
+
+.month-status-tag.snapshot {
+  background-color: #DCFCE7;
+  color: #15803D;
+  border: 1px solid rgba(21, 128, 61, 0.2);
+}
+
+/* Dynamic Revenue Countdown & Cycle Banner */
+.revenue-countdown-banner {
+  background: linear-gradient(135deg, #FFFDF9 0%, #F9F2E7 100%);
+  border: 1.5px solid #DFC7A1;
+  border-radius: 18px;
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  box-shadow: 0 4px 16px rgba(44, 24, 8, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.revenue-countdown-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 5px;
+  height: 100%;
+  background: linear-gradient(180deg, #D4AF37 0%, #C5974A 100%);
+}
+
+.revenue-countdown-banner.mode-past::before {
+  background: linear-gradient(180deg, #22C55E 0%, #16A34A 100%);
+}
+
+.revenue-countdown-banner.mode-future::before {
+  background: linear-gradient(180deg, #94A3B8 0%, #64748B 100%);
+}
+
+.banner-left-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.banner-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.cycle-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background-color: #2C1808;
+  color: #DFC7A1;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  padding: 3px 9px;
+  border-radius: 6px;
+}
+
+.countdown-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 6px;
+}
+
+.countdown-status-pill.status-current {
+  background-color: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #FCD34D;
+}
+
+.countdown-status-pill.status-past {
+  background-color: #DCFCE7;
+  color: #15803D;
+  border: 1px solid #86EFAC;
+}
+
+.countdown-status-pill.status-future {
+  background-color: #F1F5F9;
+  color: #475569;
+  border: 1px solid #CBD5E1;
+}
+
+.pulse-icon {
+  animation: pulseIcon 1.6s ease-in-out infinite;
+}
+
+@keyframes pulseIcon {
+  0% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.2); opacity: 1; color: #DC2626; }
+  100% { transform: scale(1); opacity: 0.9; }
+}
+
+.banner-countdown-title {
+  font-family: var(--font-heading);
+  font-size: clamp(16px, 2.8vw, 20px);
+  font-weight: 900;
+  color: #2C1808;
+  margin-bottom: 4px;
+}
+
+.banner-countdown-sub {
+  font-size: 12.5px;
+  color: #7A6958;
+}
+
+.banner-right-progress {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@media (max-width: 768px) {
+  .revenue-countdown-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .banner-right-progress {
+    width: 100%;
+    margin-top: 4px;
+  }
+}
+
+.progress-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+}
+
+.progress-label-text {
+  font-weight: 700;
+  color: #8C7F72;
+}
+
+.progress-value-badge {
+  font-weight: 800;
+  color: #2C1808;
+}
+
+.banner-progress-track {
+  width: 100%;
+  height: 9px;
+  background-color: #EFE6D9;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.banner-progress-fill {
+  height: 100%;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #D4AF37 0%, #C5974A 50%, #C7521E 100%);
+  transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.banner-progress-fill.status-past {
+  background: linear-gradient(90deg, #4ADE80 0%, #16A34A 100%);
+}
+
+.banner-progress-fill.status-future {
+  background: #CBD5E1;
+}
+
+.countdown-days-callout {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.countdown-big-number {
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 900;
+  color: #C7521E;
+  line-height: 1;
+}
+
+.countdown-number-unit {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #8C5318;
+}
+
+.inline-countdown-tag {
+  color: #C7521E;
+  font-weight: 700;
+  margin-left: 4px;
 }
 
 /* Summary Grid */
@@ -83,7 +385,7 @@
 .stat-label {
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   color: #8C7F72;
 }
 
@@ -148,9 +450,8 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 8px;
-  height: 220px;
-  padding-top: 24px;
-  border-bottom: 1px solid #EAE1D5;
+  height: 200px;
+  padding-top: 25px;
 }
 
 .bar-col {
@@ -159,42 +460,42 @@
   flex-direction: column;
   align-items: center;
   height: 100%;
-  justify-content: flex-end;
-  gap: 6px;
 }
 
 .bar-val-label {
-  font-size: 10.5px;
-  font-weight: 800;
-  color: #8C5318;
+  font-size: 10px;
+  font-weight: 700;
+  color: #8C7F72;
+  margin-bottom: 6px;
 }
 
 .bar-track {
+  flex: 1;
   width: 100%;
-  max-width: 34px;
-  height: 140px;
+  max-width: 28px;
+  background-color: #F8F3EC;
+  border-radius: 8px 8px 0 0;
   display: flex;
   align-items: flex-end;
-  background-color: #FAF5EE;
-  border-radius: 6px;
   overflow: hidden;
 }
 
 .bar-fill {
   width: 100%;
-  background-color: #DFC7A1;
-  border-radius: 6px 6px 0 0;
-  transition: height 0.6s ease-out;
+  background: linear-gradient(180deg, #D4AF37 0%, #C5974A 100%);
+  border-radius: 8px 8px 0 0;
+  transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .bar-fill.today-bar {
-  background: linear-gradient(180deg, #C7521E 0%, #8C5318 100%);
+  background: linear-gradient(180deg, #E67E22 0%, #C7521E 100%);
 }
 
 .bar-date-label {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  color: #8C7F72;
+  color: #6E5C4B;
+  margin-top: 8px;
 }
 
 .bar-date-label.today-text {
@@ -231,11 +532,17 @@
 .monthly-data-table td {
   padding: 8px 10px;
   border-bottom: 1px solid #F6EFE6;
+  transition: background-color var(--transition-fast);
 }
 
 .current-month-row {
   background-color: #FAF4EB;
   font-weight: 700;
+}
+
+.selected-month-row {
+  background-color: #F0FDF4 !important;
+  border-left: 3px solid #16A34A;
 }
 
 .month-name {
@@ -246,6 +553,15 @@
 .curr-tag {
   font-size: 9px;
   background-color: #C7521E;
+  color: #FFFFFF;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
+.selected-tag {
+  font-size: 9px;
+  background-color: #15803D;
   color: #FFFFFF;
   padding: 1px 5px;
   border-radius: 4px;
@@ -277,6 +593,23 @@
   border: 1px solid #EAE1D5;
   border-radius: 16px;
   padding: 20px;
+}
+
+.view-all-year-btn {
+  background-color: #FAF4EB;
+  border: 1px solid #DFC7A1;
+  color: #6E5C4B;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.view-all-year-btn:hover {
+  background-color: #2C1808;
+  color: #FFFFFF;
 }
 
 .top-sales-table-wrap {

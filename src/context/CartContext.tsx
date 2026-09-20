@@ -28,24 +28,23 @@ interface CartContextType {
   toggleSaveOffer: (offerId: string) => void;
   isOfferSaved: (offerId: string) => boolean;
   loadOrderIntoCart: (order: OrderRecord, allProducts: Product[]) => void;
-
-  // Add-more mode tracking
-  appendToOrderId: string | null;
-  setAppendToOrderId: (orderId: string | null) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentTable } = useTableSession();
+  const { currentTable, orderSessionId } = useTableSession();
   const tableKey = currentTable ? currentTable.tableNumber : 0;
-  const loadedTableKeyRef = useRef<number>(tableKey);
+  const loadedSessionIdRef = useRef<string | null>(orderSessionId);
 
+  // Cart items are strictly bound to current orderSessionId
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
-    if (!tableKey) return [];
+    if (!orderSessionId) return [];
     try {
-      const saved = localStorage.getItem(`ana_cart_table_${tableKey}`);
-      if (saved) return JSON.parse(saved);
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        const saved = sessionStorage.getItem(`ana_cart_session_${orderSessionId}`);
+        if (saved) return JSON.parse(saved);
+      }
     } catch {
       // ignore
     }
@@ -53,9 +52,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [favorites, setFavorites] = useState<Set<string>>(() => {
-    if (!tableKey) return new Set();
     try {
-      const saved = localStorage.getItem(`ana_fav_table_${tableKey}`);
+      const saved = localStorage.getItem(`ana_user_fav`);
       if (saved) return new Set(JSON.parse(saved));
     } catch {
       // ignore
@@ -67,9 +65,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [appliedVoucher, setAppliedVoucher] = useState<Offer | null>(offers[0]);
   const [orderNote, setOrderNote] = useState<string>('');
   const [savedOfferIds, setSavedOfferIds] = useState<Set<string>>(() => {
-    if (!tableKey) return new Set(['off-1', 'off-4']);
     try {
-      const saved = localStorage.getItem(`ana_saved_offers_table_${tableKey}`);
+      const saved = localStorage.getItem(`ana_user_saved_offers`);
       if (saved) return new Set(JSON.parse(saved));
     } catch {
       // ignore
@@ -77,92 +74,57 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return new Set(['off-1', 'off-4']);
   });
 
-  const [appendToOrderId, setAppendToOrderIdState] = useState<string | null>(() => {
-    if (!tableKey) return null;
-    try {
-      return localStorage.getItem(`ana_append_order_id_table_${tableKey}`) || null;
-    } catch {
-      return null;
-    }
-  });
-
-  const setAppendToOrderId = (orderId: string | null) => {
-    setAppendToOrderIdState(orderId);
-    try {
-      if (orderId && tableKey) {
-        localStorage.setItem(`ana_append_order_id_table_${tableKey}`, orderId);
-      } else if (tableKey) {
-        localStorage.removeItem(`ana_append_order_id_table_${tableKey}`);
-      }
-    } catch {
-      // ignore
-    }
-  };
-
-  // Reload state whenever active table changes
+  // Reload/reset cart state whenever orderSessionId changes
   useEffect(() => {
-    loadedTableKeyRef.current = tableKey;
+    loadedSessionIdRef.current = orderSessionId;
 
-    if (!tableKey) {
+    if (!orderSessionId) {
       setCartItems([]);
-      setFavorites(new Set());
-      setSavedOfferIds(new Set(['off-1', 'off-4']));
-      setAppendToOrderIdState(null);
       setLastAddedItem(null);
       return;
     }
 
     try {
-      const savedCart = localStorage.getItem(`ana_cart_table_${tableKey}`);
-      setCartItems(savedCart ? JSON.parse(savedCart) : []);
-
-      const savedFav = localStorage.getItem(`ana_fav_table_${tableKey}`);
-      setFavorites(savedFav ? new Set(JSON.parse(savedFav)) : new Set());
-
-      const savedOffers = localStorage.getItem(`ana_saved_offers_table_${tableKey}`);
-      setSavedOfferIds(savedOffers ? new Set(JSON.parse(savedOffers)) : new Set(['off-1', 'off-4']));
-
-      const savedAppendId = localStorage.getItem(`ana_append_order_id_table_${tableKey}`);
-      setAppendToOrderIdState(savedAppendId || null);
-
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        const savedCart = sessionStorage.getItem(`ana_cart_session_${orderSessionId}`);
+        setCartItems(savedCart ? JSON.parse(savedCart) : []);
+      }
       setLastAddedItem(null);
     } catch {
       // ignore
     }
-  }, [tableKey]);
+  }, [orderSessionId]);
 
-  // Persist cartItems ONLY if loaded table matches current tableKey (avoid writing previous table's cart to new table)
+  // Persist cartItems ONLY if active session matches current orderSessionId
   useEffect(() => {
-    if (tableKey && loadedTableKeyRef.current === tableKey) {
+    if (orderSessionId && loadedSessionIdRef.current === orderSessionId) {
       try {
-        localStorage.setItem(`ana_cart_table_${tableKey}`, JSON.stringify(cartItems));
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          sessionStorage.setItem(`ana_cart_session_${orderSessionId}`, JSON.stringify(cartItems));
+        }
       } catch {
         // ignore
       }
     }
-  }, [cartItems, tableKey]);
+  }, [cartItems, orderSessionId]);
 
   // Persist favorites
   useEffect(() => {
-    if (tableKey && loadedTableKeyRef.current === tableKey) {
-      try {
-        localStorage.setItem(`ana_fav_table_${tableKey}`, JSON.stringify(Array.from(favorites)));
-      } catch {
-        // ignore
-      }
+    try {
+      localStorage.setItem(`ana_user_fav`, JSON.stringify(Array.from(favorites)));
+    } catch {
+      // ignore
     }
-  }, [favorites, tableKey]);
+  }, [favorites]);
 
   // Persist savedOfferIds
   useEffect(() => {
-    if (tableKey && loadedTableKeyRef.current === tableKey) {
-      try {
-        localStorage.setItem(`ana_saved_offers_table_${tableKey}`, JSON.stringify(Array.from(savedOfferIds)));
-      } catch {
-        // ignore
-      }
+    try {
+      localStorage.setItem(`ana_user_saved_offers`, JSON.stringify(Array.from(savedOfferIds)));
+    } catch {
+      // ignore
     }
-  }, [savedOfferIds, tableKey]);
+  }, [savedOfferIds]);
 
   const totalCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   const totalAmount = cartItems.reduce((sum, item) => sum + item.totalPrice, 0);
@@ -267,6 +229,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCartItems([]);
     setLastAddedItem(null);
     setAppliedVoucher(null);
+    if (orderSessionId && typeof window !== 'undefined' && window.sessionStorage) {
+      try {
+        sessionStorage.removeItem(`ana_cart_session_${orderSessionId}`);
+      } catch {
+        // ignore
+      }
+    }
     if (key) {
       try {
         localStorage.removeItem(`ana_cart_table_${key}`);
@@ -367,9 +336,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         savedOfferIds,
         toggleSaveOffer,
         isOfferSaved,
-        loadOrderIntoCart,
-        appendToOrderId,
-        setAppendToOrderId
+        loadOrderIntoCart
       }}
     >
       {children}

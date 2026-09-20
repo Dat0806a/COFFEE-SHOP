@@ -38,7 +38,7 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
   onStartEditOrder
 }) => {
   const { orders, cancelCustomerOrder, fetchOrderById, uploadPaymentProof } = useStore();
-  const { setAppendToOrderId, clearCart } = useCart();
+  const { clearCart } = useCart();
   const { showError, showWarning, showSuccess, showConfirm } = useDialog();
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -52,6 +52,12 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
       fetchOrderById(orderId);
     }
   }, [orderId, fetchOrderById]);
+
+  useEffect(() => {
+    if (orderId && orders.length > 0 && !orders.some(o => o.id === orderId)) {
+      onClose();
+    }
+  }, [orderId, orders, onClose]);
 
   if (!orderId) return null;
 
@@ -130,15 +136,6 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
   };
 
   const handleContinueOrderClick = () => {
-    if (!order) return;
-    if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
-      setAppendToOrderId(null);
-      clearCart();
-      onClose();
-      onNavigateToMenu();
-      return;
-    }
-    setAppendToOrderId(order.id);
     clearCart();
     onClose();
     onNavigateToMenu();
@@ -587,7 +584,7 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
             </div>
           ) : order.paymentStatus === 'PAID' ? (
             <div className="c-order-notice-box notice-lock">
-              <span>✓ Đơn hàng đã được thanh toán đủ. Bấm "Tiếp tục gọi thêm món" để thêm món vào đơn #{order.orderNumber}.</span>
+              <span>✓ Đơn hàng đã được thanh toán đủ. Bấm "Tiếp tục gọi thêm món" để đặt thêm đơn mới cho bàn.</span>
             </div>
           ) : null}
 

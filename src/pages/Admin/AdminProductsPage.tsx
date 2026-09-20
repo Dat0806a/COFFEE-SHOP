@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Plus,
   Search,
@@ -8,11 +8,14 @@ import {
   X,
   Sparkles,
   Flame,
-  AlertTriangle
+  AlertTriangle,
+  Upload
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { Product } from '../../types';
 import './AdminProductsPage.css';
+
+const DEFAULT_PRODUCT_IMAGE = '/coffee_img/1.png';
 
 export const AdminProductsPage: React.FC = () => {
   const {
@@ -21,7 +24,9 @@ export const AdminProductsPage: React.FC = () => {
     addProduct,
     updateProduct,
     deleteProduct,
-    toggleProductAvailability
+    toggleProductAvailability,
+    uploadProductImage,
+    deleteProductImage
   } = useStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,12 +41,29 @@ export const AdminProductsPage: React.FC = () => {
   const [formName, setFormName] = useState('');
   const [formCategory, setFormCategory] = useState(categories[0]?.id || 'ca-phe');
   const [formPrice, setFormPrice] = useState<number>(35);
-  const [formImage, setFormImage] = useState('/coffee_img/1.png');
+  const [formImage, setFormImage] = useState(DEFAULT_PRODUCT_IMAGE);
   const [formDescription, setFormDescription] = useState('');
   const [formIsAvailable, setFormIsAvailable] = useState(true);
   const [formIsThaiSpecial, setFormIsThaiSpecial] = useState(false);
   const [formIsFeatured, setFormIsFeatured] = useState(false);
   const [formDisplayOrder, setFormDisplayOrder] = useState<number>(1);
+
+  // Image upload state
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>(DEFAULT_PRODUCT_IMAGE);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState('');
+  const [removeCurrentImage, setRemoveCurrentImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Cleanup blob URL on unmount or previewUrl change
+  useEffect(() => {
+    return () => {
+      if (previewUrl && previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   // Filter products
   const filteredProducts = useMemo(() => {
@@ -59,11 +81,34 @@ export const AdminProductsPage: React.FC = () => {
     });
   }, [products, selectedCategory, searchQuery]);
 
+  const closeModal = () => {
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setIsAddModalOpen(false);
+    setEditingProduct(null);
+    setImageFile(null);
+    setImageError('');
+    setIsUploadingImage(false);
+    setRemoveCurrentImage(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const openAddModal = () => {
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
     setFormName('');
     setFormCategory(categories[0]?.id || 'ca-phe');
     setFormPrice(35);
-    setFormImage('/coffee_img/1.png');
+    setFormImage(DEFAULT_PRODUCT_IMAGE);
+    setPreviewUrl(DEFAULT_PRODUCT_IMAGE);
+    setImageFile(null);
+    setRemoveCurrentImage(false);
+    setImageError('');
+    setIsUploadingImage(false);
     setFormDescription('');
     setFormIsAvailable(true);
     setFormIsThaiSpecial(false);
@@ -73,11 +118,20 @@ export const AdminProductsPage: React.FC = () => {
   };
 
   const openEditModal = (p: Product) => {
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
     setEditingProduct(p);
     setFormName(p.name);
     setFormCategory(p.category);
     setFormPrice(p.price);
-    setFormImage(p.image);
+    const initialImg = p.image || DEFAULT_PRODUCT_IMAGE;
+    setFormImage(initialImg);
+    setPreviewUrl(initialImg);
+    setImageFile(null);
+    setRemoveCurrentImage(false);
+    setImageError('');
+    setIsUploadingImage(false);
     setFormDescription(p.description || '');
     setFormIsAvailable(p.isAvailable !== false);
     setFormIsThaiSpecial(p.isThaiSpecial || false);
@@ -85,16 +139,74 @@ export const AdminProductsPage: React.FC = () => {
     setFormDisplayOrder(p.displayOrder || 1);
   };
 
-  const handleSaveAdd = (e: React.FormEvent) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImageError('');
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!allowedTypes.includes(file.type.toLowerCase())) {
+      setImageError('Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP');
+      if (e.target) e.target.value = '';
+      return;
+    }
+
+    const maxBytes = 5 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setImageError('Ảnh không được lớn hơn 5MB');
+      if (e.target) e.target.value = '';
+      return;
+    }
+
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setImageFile(file);
+    setPreviewUrl(objectUrl);
+    setRemoveCurrentImage(false);
+  };
+
+  const handleRemoveImage = () => {
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setImageFile(null);
+    setPreviewUrl(DEFAULT_PRODUCT_IMAGE);
+    setRemoveCurrentImage(true);
+    setImageError('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSaveAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim() || formPrice <= 0) return;
+    if (!formName.trim() || formPrice <= 0 || isUploadingImage) return;
+
+    let finalImageUrl = DEFAULT_PRODUCT_IMAGE;
+
+    if (imageFile) {
+      try {
+        setIsUploadingImage(true);
+        setImageError('');
+        finalImageUrl = await uploadProductImage(imageFile);
+      } catch (err: any) {
+        setIsUploadingImage(false);
+        setImageError(err.message || 'Lỗi khi tải ảnh lên. Vui lòng thử lại.');
+        return;
+      }
+    } else if (!removeCurrentImage && formImage) {
+      finalImageUrl = formImage.trim() || DEFAULT_PRODUCT_IMAGE;
+    }
 
     addProduct({
       name: formName.trim(),
       category: formCategory,
       price: formPrice,
       priceFormatted: `${formPrice}K`,
-      image: formImage.trim() || '/coffee_img/1.png',
+      image: finalImageUrl,
       description: formDescription.trim(),
       isAvailable: formIsAvailable,
       isThaiSpecial: formIsThaiSpecial,
@@ -104,19 +216,43 @@ export const AdminProductsPage: React.FC = () => {
       reviewCount: 1
     });
 
-    setIsAddModalOpen(false);
+    closeModal();
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingProduct || !formName.trim() || formPrice <= 0) return;
+    if (!editingProduct || !formName.trim() || formPrice <= 0 || isUploadingImage) return;
+
+    let finalImageUrl = editingProduct.image;
+    let oldImageToDelete: string | null = null;
+
+    if (removeCurrentImage) {
+      finalImageUrl = DEFAULT_PRODUCT_IMAGE;
+      if (editingProduct.image && editingProduct.image !== DEFAULT_PRODUCT_IMAGE) {
+        oldImageToDelete = editingProduct.image;
+      }
+    } else if (imageFile) {
+      try {
+        setIsUploadingImage(true);
+        setImageError('');
+        const newUrl = await uploadProductImage(imageFile);
+        finalImageUrl = newUrl;
+        if (editingProduct.image && editingProduct.image !== DEFAULT_PRODUCT_IMAGE) {
+          oldImageToDelete = editingProduct.image;
+        }
+      } catch (err: any) {
+        setIsUploadingImage(false);
+        setImageError(err.message || 'Lỗi khi tải ảnh lên. Vui lòng thử lại.');
+        return;
+      }
+    }
 
     updateProduct(editingProduct.id, {
       name: formName.trim(),
       category: formCategory,
       price: formPrice,
       priceFormatted: `${formPrice}K`,
-      image: formImage.trim(),
+      image: finalImageUrl,
       description: formDescription.trim(),
       isAvailable: formIsAvailable,
       isThaiSpecial: formIsThaiSpecial,
@@ -124,12 +260,21 @@ export const AdminProductsPage: React.FC = () => {
       displayOrder: formDisplayOrder
     });
 
-    setEditingProduct(null);
+    // Clean up old image from storage if replaced and different
+    if (oldImageToDelete && oldImageToDelete !== finalImageUrl) {
+      deleteProductImage(oldImageToDelete).catch(() => {});
+    }
+
+    closeModal();
   };
 
   const handleConfirmDelete = () => {
     if (deletingProduct) {
+      const imgToDelete = deletingProduct.image;
       deleteProduct(deletingProduct.id);
+      if (imgToDelete && imgToDelete !== DEFAULT_PRODUCT_IMAGE) {
+        deleteProductImage(imgToDelete).catch(() => {});
+      }
       setDeletingProduct(null);
     }
   };
@@ -211,7 +356,15 @@ export const AdminProductsPage: React.FC = () => {
                 <tr key={p.id} className={!isAvailable ? 'row-unavailable' : ''}>
                   <td className="cell-order">{p.displayOrder || idx + 1}</td>
                   <td>
-                    <img src={p.image} alt={p.name} className="product-table-thumb" />
+                    <img
+                      src={p.image}
+                      alt={p.name}
+                      className="product-table-thumb"
+                      onError={(e) => {
+                        if (e.currentTarget.src.endsWith('/coffee_img/1.png')) return;
+                        e.currentTarget.src = '/coffee_img/1.png';
+                      }}
+                    />
                   </td>
                   <td>
                     <div className="prod-name-title">{p.name}</div>
@@ -278,13 +431,7 @@ export const AdminProductsPage: React.FC = () => {
 
       {/* 4. Add / Edit Product Modal */}
       {(isAddModalOpen || editingProduct) && (
-        <div
-          className="admin-modal-overlay"
-          onClick={() => {
-            setIsAddModalOpen(false);
-            setEditingProduct(null);
-          }}
-        >
+        <div className="admin-modal-overlay" onClick={closeModal}>
           <div className="admin-product-modal" onClick={(e) => e.stopPropagation()}>
             <div className="admin-modal-header">
               <h2 className="admin-modal-title">
@@ -292,10 +439,8 @@ export const AdminProductsPage: React.FC = () => {
               </h2>
               <button
                 className="admin-modal-close"
-                onClick={() => {
-                  setIsAddModalOpen(false);
-                  setEditingProduct(null);
-                }}
+                onClick={closeModal}
+                disabled={isUploadingImage}
               >
                 <X size={18} />
               </button>
@@ -314,6 +459,7 @@ export const AdminProductsPage: React.FC = () => {
                     placeholder="Ví dụ: Trà Sữa Thái Đỏ..."
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
+                    disabled={isUploadingImage}
                   />
                 </div>
 
@@ -322,6 +468,7 @@ export const AdminProductsPage: React.FC = () => {
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
+                    disabled={isUploadingImage}
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -341,6 +488,7 @@ export const AdminProductsPage: React.FC = () => {
                     required
                     value={formPrice}
                     onChange={(e) => setFormPrice(parseInt(e.target.value, 10) || 0)}
+                    disabled={isUploadingImage}
                   />
                 </div>
 
@@ -351,18 +499,82 @@ export const AdminProductsPage: React.FC = () => {
                     min="1"
                     value={formDisplayOrder}
                     onChange={(e) => setFormDisplayOrder(parseInt(e.target.value, 10) || 1)}
+                    disabled={isUploadingImage}
                   />
                 </div>
               </div>
 
-              <div className="form-group">
-                <label>Đường dẫn hình ảnh (URL hoặc asset /coffee_img/...)</label>
-                <input
-                  type="text"
-                  placeholder="/coffee_img/1.png hoặc https://..."
-                  value={formImage}
-                  onChange={(e) => setFormImage(e.target.value)}
-                />
+              {/* Image Uploader & Preview Section */}
+              <div className="form-group product-image-uploader-group">
+                <label>Hình ảnh món</label>
+                <div className="image-uploader-card">
+                  <div className="image-preview-wrapper">
+                    <img
+                      src={previewUrl || DEFAULT_PRODUCT_IMAGE}
+                      alt="Preview món"
+                      className="product-modal-preview-img"
+                      onError={(e) => {
+                        if (e.currentTarget.src.endsWith('/coffee_img/1.png')) return;
+                        e.currentTarget.src = '/coffee_img/1.png';
+                      }}
+                    />
+                    {previewUrl === DEFAULT_PRODUCT_IMAGE && !imageFile && (
+                      <span className="default-badge">Ảnh mặc định</span>
+                    )}
+                  </div>
+
+                  <div className="image-uploader-controls">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      id="product-image-file-input"
+                      accept="image/jpeg,image/png,image/webp"
+                      style={{ display: 'none' }}
+                      onChange={handleImageChange}
+                      disabled={isUploadingImage}
+                    />
+
+                    <div className="image-actions-row">
+                      <button
+                        type="button"
+                        className="btn-upload-image"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingImage}
+                      >
+                        <Upload size={15} />
+                        <span>
+                          {imageFile || (previewUrl && previewUrl !== DEFAULT_PRODUCT_IMAGE)
+                            ? 'Thay ảnh khác'
+                            : 'Chọn ảnh từ máy'}
+                        </span>
+                      </button>
+
+                      {(imageFile || previewUrl !== DEFAULT_PRODUCT_IMAGE) && (
+                        <button
+                          type="button"
+                          className="btn-remove-image"
+                          onClick={handleRemoveImage}
+                          disabled={isUploadingImage}
+                          title="Xóa ảnh và dùng ảnh mặc định"
+                        >
+                          <Trash2 size={14} />
+                          <span>Dùng mặc định</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <p className="image-format-note">
+                      Hỗ trợ: JPG, PNG, WebP (Tối đa 5MB).
+                    </p>
+                  </div>
+                </div>
+
+                {imageError && (
+                  <div className="image-upload-error-msg">
+                    <AlertTriangle size={13} />
+                    <span>{imageError}</span>
+                  </div>
+                )}
               </div>
 
               <div className="form-group">
@@ -372,6 +584,7 @@ export const AdminProductsPage: React.FC = () => {
                   placeholder="Mô tả ngắn gọn về đặc trưng món uống..."
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
+                  disabled={isUploadingImage}
                 />
               </div>
 
@@ -381,6 +594,7 @@ export const AdminProductsPage: React.FC = () => {
                     type="checkbox"
                     checked={formIsAvailable}
                     onChange={(e) => setFormIsAvailable(e.target.checked)}
+                    disabled={isUploadingImage}
                   />
                   <span>Đang có hàng (Bật bán)</span>
                 </label>
@@ -390,6 +604,7 @@ export const AdminProductsPage: React.FC = () => {
                     type="checkbox"
                     checked={formIsThaiSpecial}
                     onChange={(e) => setFormIsThaiSpecial(e.target.checked)}
+                    disabled={isUploadingImage}
                   />
                   <span>Món đặc trưng Thái (Thai Special)</span>
                 </label>
@@ -399,6 +614,7 @@ export const AdminProductsPage: React.FC = () => {
                     type="checkbox"
                     checked={formIsFeatured}
                     onChange={(e) => setFormIsFeatured(e.target.checked)}
+                    disabled={isUploadingImage}
                   />
                   <span>Món nổi bật trang chủ (Featured)</span>
                 </label>
@@ -408,16 +624,27 @@ export const AdminProductsPage: React.FC = () => {
                 <button
                   type="button"
                   className="btn-cancel"
-                  onClick={() => {
-                    setIsAddModalOpen(false);
-                    setEditingProduct(null);
-                  }}
+                  onClick={closeModal}
+                  disabled={isUploadingImage}
                 >
                   Hủy bỏ
                 </button>
-                <button type="submit" className="btn-submit-save">
-                  <Check size={16} />
-                  <span>Lưu món</span>
+                <button
+                  type="submit"
+                  className="btn-submit-save"
+                  disabled={isUploadingImage}
+                >
+                  {isUploadingImage ? (
+                    <>
+                      <span className="btn-spinner"></span>
+                      <span>Đang tải ảnh...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={16} />
+                      <span>Lưu món</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

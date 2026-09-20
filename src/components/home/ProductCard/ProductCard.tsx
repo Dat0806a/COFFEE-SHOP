@@ -39,6 +39,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenOptions
           alt={product.name}
           className="product-thumbnail"
           loading="lazy"
+          onError={(e) => {
+            if (e.currentTarget.src.endsWith('/coffee_img/1.png')) return;
+            e.currentTarget.src = '/coffee_img/1.png';
+          }}
         />
         {/* Heart Favorite Button */}
         <button

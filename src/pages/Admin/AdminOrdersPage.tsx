@@ -8,10 +8,18 @@ import {
   Search,
   Filter,
   Receipt,
-  Eye
+  Eye,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
-import { OrderStatus, compareAdminOrders } from '../../types';
+import {
+  OrderStatus,
+  OrderRecord,
+  compareAdminOrders,
+  getVietnamCurrentMonth,
+  getVietnamYearMonth
+} from '../../types';
 import { OrderDetailsModal } from '../../components/admin/OrderDetailsModal/OrderDetailsModal';
 import './AdminOrdersPage.css';
 
@@ -19,7 +27,8 @@ interface AdminOrdersPageProps {
   initialStatusFilter?: string;
 }
 
-type TabKey = 'ALL' | 'NEW' | 'CONFIRMED' | 'PREPARING' | 'READY' | 'COMPLETED' | 'CANCELLED';
+type MainViewTab = 'PROCESSING' | 'COMPLETED';
+type ProcessingTabKey = 'ALL' | 'NEW' | 'CONFIRMED' | 'PREPARING' | 'READY' | 'CANCELLED';
 
 export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
   initialStatusFilter
@@ -29,19 +38,36 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
     updateOrderStatus,
     selectedOrderIdForDetail,
     openOrderDetail,
-    closeOrderDetail
+    closeOrderDetail,
+    cleanupExpiredUnacceptedOrders
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<TabKey>(
-    (initialStatusFilter as TabKey) || 'ALL'
+  const isInitialCompleted = initialStatusFilter === 'COMPLETED';
+  const [mainViewTab, setMainViewTab] = useState<MainViewTab>(
+    isInitialCompleted ? 'COMPLETED' : 'PROCESSING'
+  );
+  const [processingSubTab, setProcessingSubTab] = useState<ProcessingTabKey>(
+    (!isInitialCompleted && (initialStatusFilter as ProcessingTabKey)) || 'ALL'
   );
   const [selectedTable, setSelectedTable] = useState<number | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Auto-cleanup unaccepted orders older than 1 hour on mount & periodic 30s check
+  React.useEffect(() => {
+    cleanupExpiredUnacceptedOrders();
+    const interval = setInterval(() => {
+      cleanupExpiredUnacceptedOrders();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [cleanupExpiredUnacceptedOrders]);
+
   // Sync tab when initialStatusFilter changes from external navigation
   React.useEffect(() => {
-    if (initialStatusFilter) {
-      setActiveTab(initialStatusFilter as TabKey);
+    if (initialStatusFilter === 'COMPLETED') {
+      setMainViewTab('COMPLETED');
+    } else if (initialStatusFilter) {
+      setMainViewTab('PROCESSING');
+      setProcessingSubTab(initialStatusFilter as ProcessingTabKey);
     }
   }, [initialStatusFilter]);
 
@@ -50,20 +76,70 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
     ? orders.find((o) => o.id === selectedOrderIdForDetail) || null
     : null;
 
-  // Filter orders
-  const filteredOrders = orders
-    .filter((order) => {
-      // 1. Tab filter
-      if (activeTab !== 'ALL' && order.status !== activeTab) {
-        return false;
-      }
+  const currentVietnamMonth = getVietnamCurrentMonth(); // "YYYY-MM"
+  const currentMonthNum = parseInt(currentVietnamMonth.slice(5, 7), 10) || (new Date().getMonth() + 1);
+  const currentYearNum = parseInt(currentVietnamMonth.slice(0, 4), 10) || new Date().getFullYear();
 
-      // 2. Table filter
+  // All processing (non-completed) orders
+  const allProcessingOrders = orders.filter((o) => o.status !== 'COMPLETED');
+
+  // All completed orders of the CURRENT Vietnam month
+  const currentMonthCompletedOrders = orders.filter((o) => {
+    if (o.status !== 'COMPLETED' || !o.completedAt) return false;
+    return getVietnamYearMonth(o.completedAt) === currentVietnamMonth;
+  }).sort((a, b) => {
+    const timeA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+    const timeB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+    if (timeB !== timeA) return timeB - timeA;
+    return compareAdminOrders(a, b);
+  });
+
+  // Calculate counts
+  const processingTabCounts = {
+    ALL: allProcessingOrders.length,
+    NEW: allProcessingOrders.filter((o) => o.status === 'NEW').length,
+    CONFIRMED: allProcessingOrders.filter((o) => o.status === 'CONFIRMED').length,
+    PREPARING: allProcessingOrders.filter((o) => o.status === 'PREPARING').length,
+    READY: allProcessingOrders.filter((o) => o.status === 'READY').length,
+    CANCELLED: allProcessingOrders.filter((o) => o.status === 'CANCELLED').length
+  };
+
+  const completedMonthCount = currentMonthCompletedOrders.length;
+  const completedMonthTotalRev = currentMonthCompletedOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+
+  // Apply filters based on current main tab
+  let displayOrders: OrderRecord[] = [];
+
+  if (mainViewTab === 'PROCESSING') {
+    displayOrders = allProcessingOrders
+      .filter((order) => {
+        // Sub-tab filter
+        if (processingSubTab !== 'ALL' && order.status !== processingSubTab) {
+          return false;
+        }
+        // Table filter
+        if (selectedTable !== 'ALL' && order.tableNumber !== selectedTable) {
+          return false;
+        }
+        // Search query
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          const matchCode = order.orderNumber.toLowerCase().includes(q);
+          const matchTable = order.tableName.toLowerCase().includes(q);
+          const matchItem = order.items.some((it) => it.productName.toLowerCase().includes(q));
+          if (!matchCode && !matchTable && !matchItem) return false;
+        }
+        return true;
+      })
+      .sort(compareAdminOrders);
+  } else {
+    // COMPLETED tab
+    displayOrders = currentMonthCompletedOrders.filter((order) => {
+      // Table filter
       if (selectedTable !== 'ALL' && order.tableNumber !== selectedTable) {
         return false;
       }
-
-      // 3. Search query
+      // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchCode = order.orderNumber.toLowerCase().includes(q);
@@ -71,20 +147,9 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
         const matchItem = order.items.some((it) => it.productName.toLowerCase().includes(q));
         if (!matchCode && !matchTable && !matchItem) return false;
       }
-
       return true;
-    })
-    .sort(compareAdminOrders);
-
-  const tabCounts = {
-    ALL: orders.length,
-    NEW: orders.filter((o) => o.status === 'NEW').length,
-    CONFIRMED: orders.filter((o) => o.status === 'CONFIRMED').length,
-    PREPARING: orders.filter((o) => o.status === 'PREPARING').length,
-    READY: orders.filter((o) => o.status === 'READY').length,
-    COMPLETED: orders.filter((o) => o.status === 'COMPLETED').length,
-    CANCELLED: orders.filter((o) => o.status === 'CANCELLED').length
-  };
+    });
+  }
 
   const handleStatusTransition = (orderId: string, nextStatus: OrderStatus) => {
     updateOrderStatus(orderId, nextStatus);
@@ -92,6 +157,15 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
 
   const formatVND = (kValue: number) => {
     return (kValue * 1000).toLocaleString('vi-VN') + 'đ';
+  };
+
+  const formatDateTime = (isoString?: string) => {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+    const timeStr = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return `${timeStr} • ${dateStr}`;
   };
 
   return (
@@ -106,7 +180,32 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
         </div>
       </div>
 
-      {/* 2. Filter Bar & Search */}
+      {/* 2. Top-Level Main Tabs: [ Đang xử lý ] vs [ Đã hoàn thành ] */}
+      <div className="orders-main-tabs-switcher">
+        <button
+          className={`main-tab-button ${mainViewTab === 'PROCESSING' ? 'active' : ''}`}
+          onClick={() => setMainViewTab('PROCESSING')}
+        >
+          <Clock size={16} />
+          <span>Đang xử lý</span>
+          <span className="main-tab-badge processing-badge">
+            {allProcessingOrders.length}
+          </span>
+        </button>
+
+        <button
+          className={`main-tab-button ${mainViewTab === 'COMPLETED' ? 'active' : ''}`}
+          onClick={() => setMainViewTab('COMPLETED')}
+        >
+          <CheckCheck size={16} />
+          <span>Đã hoàn thành</span>
+          <span className="main-tab-badge completed-badge">
+            {completedMonthCount}
+          </span>
+        </button>
+      </div>
+
+      {/* 3. Filter Bar & Search */}
       <div className="orders-control-bar">
         {/* Search */}
         <div className="orders-search-box">
@@ -143,104 +242,121 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
         </div>
       </div>
 
-      {/* 3. Status Tabs Navigation */}
-      <div className="orders-tabs-nav">
-        <button
-          className={`tab-btn ${activeTab === 'ALL' ? 'active' : ''}`}
-          onClick={() => setActiveTab('ALL')}
-        >
-          <span>Tất cả</span>
-          <span className="tab-count">{tabCounts.ALL}</span>
-        </button>
+      {/* 4. Sub-Navigation / Status Pills (For Processing Tab) or Month Banner (For Completed Tab) */}
+      {mainViewTab === 'PROCESSING' ? (
+        <div className="orders-tabs-nav">
+          <button
+            className={`tab-btn ${processingSubTab === 'ALL' ? 'active' : ''}`}
+            onClick={() => setProcessingSubTab('ALL')}
+          >
+            <span>Tất cả</span>
+            <span className="tab-count">{processingTabCounts.ALL}</span>
+          </button>
 
-        <button
-          className={`tab-btn tab-new ${activeTab === 'NEW' ? 'active' : ''}`}
-          onClick={() => setActiveTab('NEW')}
-        >
-          <span>Đơn mới</span>
-          {tabCounts.NEW > 0 && <span className="tab-count alert">{tabCounts.NEW}</span>}
-        </button>
+          <button
+            className={`tab-btn tab-new ${processingSubTab === 'NEW' ? 'active' : ''}`}
+            onClick={() => setProcessingSubTab('NEW')}
+          >
+            <span>Đơn mới</span>
+            {processingTabCounts.NEW > 0 && (
+              <span className="tab-count alert">{processingTabCounts.NEW}</span>
+            )}
+          </button>
 
-        <button
-          className={`tab-btn ${activeTab === 'CONFIRMED' ? 'active' : ''}`}
-          onClick={() => setActiveTab('CONFIRMED')}
-        >
-          <span>Đã xác nhận</span>
-          <span className="tab-count">{tabCounts.CONFIRMED}</span>
-        </button>
+          <button
+            className={`tab-btn ${processingSubTab === 'CONFIRMED' ? 'active' : ''}`}
+            onClick={() => setProcessingSubTab('CONFIRMED')}
+          >
+            <span>Đã xác nhận</span>
+            <span className="tab-count">{processingTabCounts.CONFIRMED}</span>
+          </button>
 
-        <button
-          className={`tab-btn ${activeTab === 'PREPARING' ? 'active' : ''}`}
-          onClick={() => setActiveTab('PREPARING')}
-        >
-          <span>Đang chuẩn bị</span>
-          <span className="tab-count">{tabCounts.PREPARING}</span>
-        </button>
+          <button
+            className={`tab-btn ${processingSubTab === 'PREPARING' ? 'active' : ''}`}
+            onClick={() => setProcessingSubTab('PREPARING')}
+          >
+            <span>Đang chuẩn bị</span>
+            <span className="tab-count">{processingTabCounts.PREPARING}</span>
+          </button>
 
-        <button
-          className={`tab-btn ${activeTab === 'READY' ? 'active' : ''}`}
-          onClick={() => setActiveTab('READY')}
-        >
-          <span>Sẵn sàng</span>
-          <span className="tab-count">{tabCounts.READY}</span>
-        </button>
+          <button
+            className={`tab-btn ${processingSubTab === 'READY' ? 'active' : ''}`}
+            onClick={() => setProcessingSubTab('READY')}
+          >
+            <span>Sẵn sàng</span>
+            <span className="tab-count">{processingTabCounts.READY}</span>
+          </button>
 
-        <button
-          className={`tab-btn ${activeTab === 'COMPLETED' ? 'active' : ''}`}
-          onClick={() => setActiveTab('COMPLETED')}
-        >
-          <span>Hoàn thành</span>
-          <span className="tab-count">{tabCounts.COMPLETED}</span>
-        </button>
+          <button
+            className={`tab-btn ${processingSubTab === 'CANCELLED' ? 'active' : ''}`}
+            onClick={() => setProcessingSubTab('CANCELLED')}
+          >
+            <span>Đã hủy</span>
+            <span className="tab-count">{processingTabCounts.CANCELLED}</span>
+          </button>
+        </div>
+      ) : (
+        <div className="completed-month-banner">
+          <div className="completed-month-info">
+            <Sparkles size={16} className="sparkle-icon" />
+            <span>
+              Đơn hoàn thành trong <strong>Tháng {currentMonthNum}/{currentYearNum}</strong>:
+            </span>
+            <span className="completed-summary-pill">
+              {completedMonthCount} đơn
+            </span>
+            <span className="completed-summary-pill highlight">
+              Doanh thu: {formatVND(completedMonthTotalRev)}
+            </span>
+          </div>
+          <span className="completed-sort-tip">Sắp xếp theo thời gian hoàn thành mới nhất</span>
+        </div>
+      )}
 
-        <button
-          className={`tab-btn ${activeTab === 'CANCELLED' ? 'active' : ''}`}
-          onClick={() => setActiveTab('CANCELLED')}
-        >
-          <span>Đã hủy</span>
-          <span className="tab-count">{tabCounts.CANCELLED}</span>
-        </button>
-      </div>
-
-      {/* 4. Orders List Grid */}
+      {/* 5. Orders List Grid */}
       <div className="orders-list-container">
-        {filteredOrders.length === 0 ? (
+        {displayOrders.length === 0 ? (
           <div className="orders-empty-state">
             <Receipt size={40} className="empty-icon" />
-            <h3>Không có đơn hàng nào</h3>
-            <p>Hiện không có đơn hàng nào trong trạng thái hoặc bộ lọc đã chọn.</p>
+            <h3>
+              {mainViewTab === 'PROCESSING'
+                ? 'Không có đơn hàng nào đang xử lý'
+                : `Chưa có đơn hàng nào hoàn thành trong Tháng ${currentMonthNum}/${currentYearNum}`}
+            </h3>
+            <p>
+              {mainViewTab === 'PROCESSING'
+                ? 'Hiện không có đơn hàng nào trong trạng thái hoặc bộ lọc đã chọn.'
+                : 'Các đơn hoàn thành trong tháng hiện tại sẽ được lưu và hiển thị tại đây.'}
+            </p>
           </div>
         ) : (
           <div className="orders-cards-grid">
-            {filteredOrders.map((order) => {
+            {displayOrders.map((order) => {
               const totalItemsCount = order.items.reduce(
                 (sum, item) => sum + item.quantity,
                 0
               );
-              const createdAtDate = new Date(order.createdAt);
-              const timeStr = createdAtDate.toLocaleTimeString('vi-VN', {
-                hour: '2-digit',
-                minute: '2-digit'
-              });
-              const dateStr = createdAtDate.toLocaleDateString('vi-VN', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-              });
 
               return (
                 <div
                   key={order.id}
-                  className={`admin-order-card status-border-${order.status.toLowerCase()}`}
+                  className={`admin-order-card status-border-${order.status.toLowerCase()} ${
+                    order.status === 'COMPLETED' ? 'completed-card' : ''
+                  }`}
                   onClick={() => openOrderDetail(order.id)}
                 >
                   {/* Card Head */}
                   <div className="order-card-header">
                     <div className="order-card-table-badge">
                       <span className="table-title">{order.tableName}</span>
-                      <span className="order-time-stamp">
-                        {timeStr} • {dateStr}
+                      <span className="order-time-stamp" title="Thời gian đặt món">
+                        <Clock size={11} /> {formatDateTime(order.createdAt)}
                       </span>
+                      {order.completedAt && (
+                        <span className="order-completed-timestamp" title="Thời gian hoàn thành">
+                          <CheckCheck size={12} /> Xong: {formatDateTime(order.completedAt)}
+                        </span>
+                      )}
                     </div>
 
                     <div className="order-card-code-status">
@@ -257,13 +373,18 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
                           {order.status === 'CANCELLED' && 'ĐÃ HỦY'}
                         </span>
 
-                        <span className={`order-pay-pill pay-${order.paymentStatus?.toLowerCase() || 'pending'}`}>
-                          {order.paymentMethod === 'BANK_TRANSFER' ? 'CK' : 'TM'} • {' '}
+                        <span
+                          className={`order-pay-pill pay-${
+                            order.paymentStatus?.toLowerCase() || 'pending'
+                          }`}
+                        >
+                          {order.paymentMethod === 'BANK_TRANSFER' ? 'CK' : 'TM'} •{' '}
                           {order.paymentStatus === 'PAID' && 'Đã thanh toán'}
                           {order.paymentStatus === 'VERIFYING' && 'Chờ xác minh'}
-                          {order.paymentStatus === 'PENDING' && (
-                            order.paymentMethod === 'BANK_TRANSFER' ? 'Chưa gửi ảnh' : 'Chờ quầy'
-                          )}
+                          {order.paymentStatus === 'PENDING' &&
+                            (order.paymentMethod === 'BANK_TRANSFER'
+                              ? 'Chưa gửi ảnh'
+                              : 'Chờ quầy')}
                           {order.paymentStatus === 'REJECTED' && 'Ảnh lỗi'}
                         </span>
                       </div>
@@ -288,15 +409,20 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
                             {[
                               item.selectedSize && `Size ${item.selectedSize}`,
                               item.sugarLevel && `Đường ${item.sugarLevel}`,
-                              item.iceLevel && (item.iceLevel === '0%' ? 'Không đá' : `Đá ${item.iceLevel}`),
-                              item.toppings && item.toppings.length > 0 && `+${item.toppings.join(', ')}`
+                              item.iceLevel &&
+                                (item.iceLevel === '0%' ? 'Không đá' : `Đá ${item.iceLevel}`),
+                              item.toppings &&
+                                item.toppings.length > 0 &&
+                                `+${item.toppings.join(', ')}`
                             ]
                               .filter(Boolean)
                               .join(' • ')}
                           </div>
                         )}
 
-                        <span className="item-subtotal-price">{formatVND(item.totalPrice)}</span>
+                        <span className="item-subtotal-price">
+                          {formatVND(item.totalPrice)}
+                        </span>
                       </div>
                     ))}
 
@@ -308,7 +434,10 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
                   </div>
 
                   {/* Card Footer Summary */}
-                  <div className="order-card-summary-row" onClick={(e) => e.stopPropagation()}>
+                  <div
+                    className="order-card-summary-row"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="order-totals-info">
                       <span className="order-item-count">{totalItemsCount} món</span>
                       <span className="order-grand-total">{formatVND(order.total)}</span>
@@ -341,7 +470,9 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
                             <span>Hủy</span>
                           </button>
                           <button
-                            className={`order-act-btn confirm ${order.paymentStatus !== 'PAID' ? 'confirm-locked' : ''}`}
+                            className={`order-act-btn confirm ${
+                              order.paymentStatus !== 'PAID' ? 'confirm-locked' : ''
+                            }`}
                             onClick={(e) => {
                               e.stopPropagation();
                               if (order.paymentStatus !== 'PAID') {
@@ -350,10 +481,16 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
                               }
                               handleStatusTransition(order.id, 'CONFIRMED');
                             }}
-                            title={order.paymentStatus !== 'PAID' ? 'Vui lòng xác nhận thanh toán trước.' : 'Xác nhận đơn'}
+                            title={
+                              order.paymentStatus !== 'PAID'
+                                ? 'Vui lòng xác nhận thanh toán trước.'
+                                : 'Xác nhận đơn'
+                            }
                           >
                             <Check size={15} />
-                            <span>{order.paymentStatus !== 'PAID' ? 'Duyệt TT' : 'Xác nhận'}</span>
+                            <span>
+                              {order.paymentStatus !== 'PAID' ? 'Duyệt TT' : 'Xác nhận'}
+                            </span>
                           </button>
                         </>
                       )}
@@ -453,4 +590,3 @@ export const AdminOrdersPage: React.FC<AdminOrdersPageProps> = ({
     </div>
   );
 };
-

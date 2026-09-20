@@ -9,6 +9,7 @@ import {
   AdminNotification,
   SalesTransaction,
   SalesTransactionItem,
+  MonthlyStatistics,
   getOrderActivityTimestamp
 } from '../types';
 import { storeService, AppendOrderParams } from '../services/storeService';
@@ -64,6 +65,8 @@ interface StoreContextType {
   updateProduct: (id: string, updates: Partial<Product>) => Product | null;
   deleteProduct: (id: string) => boolean;
   toggleProductAvailability: (id: string) => Product | null;
+  uploadProductImage: (file: File) => Promise<string>;
+  deleteProductImage: (imageUrl: string) => Promise<void>;
   
   addCategory: (category: Omit<Category, 'id'>) => Category;
   updateCategory: (id: string, updates: Partial<Category>) => Category | null;
@@ -81,6 +84,7 @@ interface StoreContextType {
     paymentMethod?: PaymentMethod;
     paymentProofPath?: string;
     paymentSubmittedAt?: string;
+    orderSessionId?: string;
     items: Omit<OrderRecord['items'][0], 'id' | 'orderId'>[];
   }) => Promise<OrderRecord>;
   
@@ -103,7 +107,7 @@ interface StoreContextType {
   refreshStore: () => void;
   fetchOrderById: (orderId: string) => Promise<OrderRecord | null>;
   getTableOrders: (tableNumber: number) => OrderRecord[];
-  getTableOpenOrder: (tableNumber: number) => OrderRecord | null;
+  getTableOpenOrder: (tableNumber: number, orderSessionId?: string) => OrderRecord | null;
   submitCustomerCart: (params: {
     tableNumber: number;
     tableName: string;
@@ -116,6 +120,7 @@ interface StoreContextType {
     paymentMethod?: PaymentMethod;
     paymentProofPath?: string;
     paymentSubmittedAt?: string;
+    orderSessionId?: string;
     items: Omit<OrderRecord['items'][0], 'id' | 'orderId'>[];
   }) => Promise<{ order: OrderRecord; isAppended: boolean; wasConfirmed?: boolean }>;
 
@@ -139,6 +144,14 @@ interface StoreContextType {
     verifiedBy?: string;
   }) => Promise<{ success: boolean; transactionId?: string; recordedAmount?: number; recordedItemsCount?: number; error?: string }>;
   fetchSalesLedger: () => Promise<{ transactions: SalesTransaction[]; items: SalesTransactionItem[] }>;
+
+  // Monthly Statistics & Snapshot APIs
+  monthlyStatistics: MonthlyStatistics[];
+  fetchMonthlyStatistics: () => Promise<MonthlyStatistics[]>;
+  runMonthlyCleanup: () => Promise<{ cleanedCount: number; snapshotsCreated: number }>;
+  cleanupExpiredUnacceptedOrders: () => Promise<{ deletedCount: number; deletedOrderIds: string[] }>;
+  getMonthlyStatistics: () => MonthlyStatistics[];
+  getMonthlyStatsDetail: (yearMonth: string) => MonthlyStatistics;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -149,6 +162,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [orders, setOrders] = useState<OrderRecord[]>(() => storeService.getOrders());
   const [salesTransactions, setSalesTransactions] = useState<SalesTransaction[]>(() => storeService.getSalesTransactions());
   const [salesTransactionItems, setSalesTransactionItems] = useState<SalesTransactionItem[]>(() => storeService.getSalesTransactionItems());
+  const [monthlyStatistics, setMonthlyStatistics] = useState<MonthlyStatistics[]>(() => storeService.getMonthlyStatistics());
   const [newOrderNotifications, setNewOrderNotifications] = useState<OrderRecord[]>([]);
   const [customerToasts, setCustomerToasts] = useState<CustomerToastItem[]>([]);
   const [selectedOrderIdForDetail, setSelectedOrderIdForDetail] = useState<string | null>(null);
@@ -341,6 +355,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setSalesTransactionItems(storeService.getSalesTransactionItems());
     });
 
+    const unsubMonthly = storeService.subscribeToMonthlyStats((stats) => {
+      setMonthlyStatistics(stats);
+    });
+
     // Periodic polling to guarantee 100% synchronization across tabs and devices
     const pollInterval = setInterval(() => {
       applyOrdersUpdate(storeService.getOrders());
@@ -352,6 +370,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (fetched) applyOrdersUpdate(fetched);
       });
       storeService.fetchSalesLedger();
+      storeService.fetchMonthlyStatistics();
     };
 
     window.addEventListener('focus', onVisibilityOrFocus);
@@ -360,6 +379,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => {
       unsubscribe();
       unsubSales();
+      unsubMonthly();
       clearInterval(pollInterval);
       window.removeEventListener('focus', onVisibilityOrFocus);
       document.removeEventListener('visibilitychange', onVisibilityOrFocus);
@@ -416,6 +436,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return updated;
   }, []);
 
+  const uploadProductImage = useCallback(async (file: File) => {
+    return await storeService.uploadProductImage(file);
+  }, []);
+
+  const deleteProductImage = useCallback(async (imageUrl: string) => {
+    await storeService.deleteProductImage(imageUrl);
+  }, []);
+
   const addCategory = useCallback((cat: Omit<Category, 'id'>) => {
     const created = storeService.addCategory(cat);
     setCategories(storeService.getCategories());
@@ -445,6 +473,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     total: number;
     note?: string;
     voucherCode?: string;
+    paymentMethod?: PaymentMethod;
+    paymentProofPath?: string;
+    paymentSubmittedAt?: string;
+    orderSessionId?: string;
     items: Omit<OrderRecord['items'][0], 'id' | 'orderId'>[];
   }) => {
     const order = await storeService.createOrder(params);
@@ -492,9 +524,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return orders.filter(o => o.tableNumber === tableNumber);
   }, [orders]);
 
-  const getTableOpenOrder = useCallback((tableNumber: number) => {
+  const getTableOpenOrder = useCallback((tableNumber: number, orderSessionId?: string) => {
     const found = orders
-      .filter(o => o.tableNumber === tableNumber && o.status === 'NEW')
+      .filter(o => o.tableNumber === tableNumber && o.status === 'NEW' && (!orderSessionId || o.orderSessionId === orderSessionId))
       .sort((a, b) => getOrderActivityTimestamp(b) - getOrderActivityTimestamp(a));
     return found[0] || null;
   }, [orders]);
@@ -543,34 +575,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     paymentMethod?: PaymentMethod;
     paymentProofPath?: string;
     paymentSubmittedAt?: string;
+    orderSessionId?: string;
     items: Omit<OrderRecord['items'][0], 'id' | 'orderId'>[];
   }): Promise<{ order: OrderRecord; isAppended: boolean; wasConfirmed?: boolean }> => {
-    // 1. Check if table has an open order in NEW status
-    const openOrder = storeService.getTableOpenOrder(params.tableNumber);
-
-    if (openOrder && openOrder.status === 'NEW') {
-      console.log('[STORE CONTEXT] Found open order for table:', openOrder.orderNumber, 'Appending items...');
-      const res = await storeService.appendItemsToOpenOrder(openOrder.id, params.items, {
-        note: params.note,
-        voucherCode: params.voucherCode
-      });
-
-      if (res.success && res.order) {
-        setOrders(storeService.getOrders());
-        return { order: res.order, isAppended: true };
-      }
-
-      if (res.wasConfirmed) {
-        console.log('[STORE CONTEXT] Open order was confirmed/locked in meantime. Creating new order instead...');
-        // Open order was locked by Admin or already paid. Create a new order!
-        const newOrd = await storeService.createOrder(params);
-        setOrders(storeService.getOrders());
-        return { order: newOrd, isAppended: false, wasConfirmed: true };
-      }
-    }
-
-    // 2. No open order: Create brand new order
-    console.log('[STORE CONTEXT] No open order. Creating brand new order...');
+    // ALWAYS create a brand new order record for every checkout
+    console.log('[STORE CONTEXT] Creating brand new order record for checkout at table:', params.tableNumber);
     const created = await storeService.createOrder(params);
     setOrders(storeService.getOrders());
     return { order: created, isAppended: false };
@@ -632,6 +641,50 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return res;
   }, []);
 
+  const fetchMonthlyStatistics = useCallback(async () => {
+    const res = await storeService.fetchMonthlyStatistics();
+    setMonthlyStatistics(res);
+    return res;
+  }, []);
+
+  const runMonthlyCleanup = useCallback(async () => {
+    const res = await storeService.runMonthlyCleanup();
+    setMonthlyStatistics(storeService.getMonthlyStatistics());
+    setOrders(storeService.getOrders());
+    return res;
+  }, []);
+
+  const cleanupExpiredUnacceptedOrders = useCallback(async () => {
+    const res = await storeService.cleanupExpiredUnacceptedOrders();
+    if (res.deletedCount > 0) {
+      setOrders(storeService.getOrders());
+    }
+    return res;
+  }, []);
+
+  // Periodic safety check for expired unaccepted orders (> 1 hour)
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await storeService.cleanupExpiredUnacceptedOrders();
+        if (res.deletedCount > 0) {
+          setOrders(storeService.getOrders());
+        }
+      } catch {
+        // ignore
+      }
+    }, 60000); // Run check every 60s
+    return () => clearInterval(interval);
+  }, []);
+
+  const getMonthlyStatistics = useCallback(() => {
+    return storeService.getMonthlyStatistics();
+  }, []);
+
+  const getMonthlyStatsDetail = useCallback((yearMonth: string) => {
+    return storeService.getMonthlyStatsDetail(yearMonth);
+  }, []);
+
   const activeOrders = orders.filter(o => o.status !== 'COMPLETED' && o.status !== 'CANCELLED');
   const newOrdersCount = orders.filter(o => o.status === 'NEW').length;
 
@@ -665,6 +718,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateProduct,
         deleteProduct,
         toggleProductAvailability,
+        uploadProductImage,
+        deleteProductImage,
         addCategory,
         updateCategory,
         deleteCategory,
@@ -686,7 +741,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         salesTransactions,
         salesTransactionItems,
         confirmSale,
-        fetchSalesLedger
+        fetchSalesLedger,
+        monthlyStatistics,
+        fetchMonthlyStatistics,
+        runMonthlyCleanup,
+        cleanupExpiredUnacceptedOrders,
+        getMonthlyStatistics,
+        getMonthlyStatsDetail
       }}
     >
       {children}

@@ -167,6 +167,7 @@ export interface OrderRecord {
   readyAt?: string;
   completedAt?: string;
   cancelledAt?: string;
+  orderSessionId?: string; // Ordering session identifier
 }
 
 export function getOrderPaidAmount(order: OrderRecord): number {
@@ -335,3 +336,222 @@ export interface AdminNotification {
   isRead: boolean;
   createdAt: string;
 }
+
+export interface MonthlyProductStat {
+  productId: string;
+  productName: string;
+  category: string;
+  image: string;
+  quantity: number;
+  revenue: number;
+}
+
+export interface MonthlyStatistics {
+  month: string; // "YYYY-MM", e.g. "2026-09"
+  revenue: number;
+  completedOrders: number;
+  itemsSold: number;
+  averageOrderValue: number;
+  productStats: MonthlyProductStat[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function getVietnamDateComponents(dateOrIso?: string | Date): {
+  year: number;
+  month: number;
+  day: number;
+  hours: number;
+  minutes: number;
+} {
+  const d = dateOrIso ? (typeof dateOrIso === 'string' ? new Date(dateOrIso) : dateOrIso) : new Date();
+  const validDate = isNaN(d.getTime()) ? new Date() : d;
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(validDate);
+  let year = validDate.getFullYear();
+  let month = validDate.getMonth() + 1;
+  let day = validDate.getDate();
+  let hours = validDate.getHours();
+  let minutes = validDate.getMinutes();
+
+  for (const p of parts) {
+    if (p.type === 'year') year = parseInt(p.value, 10);
+    if (p.type === 'month') month = parseInt(p.value, 10);
+    if (p.type === 'day') day = parseInt(p.value, 10);
+    if (p.type === 'hour') hours = parseInt(p.value, 10);
+    if (p.type === 'minute') minutes = parseInt(p.value, 10);
+  }
+  return { year, month, day, hours, minutes };
+}
+
+export interface RemainingTimeInfo {
+  mode: 'MONTH' | 'YEAR';
+  status: 'CURRENT' | 'PAST' | 'FUTURE';
+  remainingDays: number;
+  passedDays: number;
+  totalDays: number;
+  percentPassed: number;
+  title: string;
+  badge: string;
+  subText: string;
+}
+
+export function getRemainingDaysInMonth(year: number, month: number): RemainingTimeInfo {
+  const { year: nowYear, month: nowMonth, day: nowDay } = getVietnamDateComponents();
+  const totalDays = new Date(year, month, 0).getDate();
+
+  const monthLabel = month < 10 ? `0${month}` : `${month}`;
+
+  if (year < nowYear || (year === nowYear && month < nowMonth)) {
+    return {
+      mode: 'MONTH',
+      status: 'PAST',
+      remainingDays: 0,
+      passedDays: totalDays,
+      totalDays,
+      percentPassed: 100,
+      title: `Tháng ${monthLabel}/${year} đã kết thúc`,
+      badge: `Đã kết thúc (30/30 ngày)`,
+      subText: `Đã hoàn thành chu kỳ tháng • Dữ liệu snapshot được lưu vĩnh viễn`
+    };
+  }
+
+  if (year > nowYear || (year === nowYear && month > nowMonth)) {
+    return {
+      mode: 'MONTH',
+      status: 'FUTURE',
+      remainingDays: totalDays,
+      passedDays: 0,
+      totalDays,
+      percentPassed: 0,
+      title: `Tháng ${monthLabel}/${year} chưa bắt đầu`,
+      badge: `Chưa bắt đầu`,
+      subText: `Chu kỳ tháng sẽ bắt đầu vào ngày 01/${monthLabel}/${year}`
+    };
+  }
+
+  // Current month
+  const passedDays = nowDay;
+  const remainingDays = Math.max(0, totalDays - nowDay);
+  const percentPassed = Math.min(100, Math.round((nowDay / totalDays) * 100));
+
+  let badge = `Còn ${remainingDays} ngày`;
+  let title = `Còn ${remainingDays} ngày là kết thúc Tháng ${monthLabel}/${year}`;
+  if (remainingDays === 0) {
+    badge = 'Hôm nay là ngày cuối tháng';
+    title = `Hôm nay là ngày cuối cùng của Tháng ${monthLabel}/${year}`;
+  } else if (remainingDays === 1) {
+    badge = 'Còn 1 ngày cuối cùng';
+    title = `Còn 1 ngày nữa là kết thúc Tháng ${monthLabel}/${year}`;
+  }
+
+  return {
+    mode: 'MONTH',
+    status: 'CURRENT',
+    remainingDays,
+    passedDays,
+    totalDays,
+    percentPassed,
+    title,
+    badge,
+    subText: `Hôm nay là ngày ${nowDay}/${totalDays} • Đã qua ${percentPassed}% chu kỳ tháng`
+  };
+}
+
+export function getRemainingDaysInYear(year: number): RemainingTimeInfo {
+  const { year: nowYear, month: nowMonth, day: nowDay } = getVietnamDateComponents();
+  const isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const totalDays = isLeap ? 366 : 365;
+
+  if (year < nowYear) {
+    return {
+      mode: 'YEAR',
+      status: 'PAST',
+      remainingDays: 0,
+      passedDays: totalDays,
+      totalDays,
+      percentPassed: 100,
+      title: `Năm ${year} đã kết thúc`,
+      badge: `Đã kết thúc (${totalDays}/${totalDays} ngày)`,
+      subText: `Đã chốt sổ toàn bộ 12 tháng năm ${year}`
+    };
+  }
+
+  if (year > nowYear) {
+    return {
+      mode: 'YEAR',
+      status: 'FUTURE',
+      remainingDays: totalDays,
+      passedDays: 0,
+      totalDays,
+      percentPassed: 0,
+      title: `Năm ${year} chưa bắt đầu`,
+      badge: `Chưa bắt đầu`,
+      subText: `Năm ${year} sẽ bắt đầu vào ngày 01/01/${year}`
+    };
+  }
+
+  // Current year: calculate days passed up to nowDay/nowMonth
+  let passedDays = 0;
+  for (let m = 1; m < nowMonth; m++) {
+    passedDays += new Date(year, m, 0).getDate();
+  }
+  passedDays += nowDay;
+
+  const remainingDays = Math.max(0, totalDays - passedDays);
+  const percentPassed = Math.min(100, Math.round((passedDays / totalDays) * 100));
+
+  let badge = `Còn ${remainingDays} ngày`;
+  let title = `Còn ${remainingDays} ngày là kết thúc Năm ${year}`;
+  if (remainingDays === 0) {
+    badge = 'Hôm nay là ngày cuối năm';
+    title = `Hôm nay là ngày cuối cùng của Năm ${year}`;
+  } else if (remainingDays === 1) {
+    badge = 'Còn 1 ngày cuối cùng';
+    title = `Còn 1 ngày nữa là kết thúc Năm ${year}`;
+  }
+
+  return {
+    mode: 'YEAR',
+    status: 'CURRENT',
+    remainingDays,
+    passedDays,
+    totalDays,
+    percentPassed,
+    title,
+    badge,
+    subText: `Đã qua ${passedDays}/${totalDays} ngày của năm • Tiến độ chu kỳ năm ${percentPassed}%`
+  };
+}
+
+export function getVietnamDateStr(dateOrIso?: string | Date): string {
+  if (!dateOrIso) return '';
+  const d = typeof dateOrIso === 'string' ? new Date(dateOrIso) : dateOrIso;
+  if (isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(d);
+}
+
+export function getVietnamYearMonth(dateOrIso?: string | Date): string {
+  const dStr = getVietnamDateStr(dateOrIso || new Date());
+  return dStr ? dStr.slice(0, 7) : '';
+}
+
+export function getVietnamCurrentMonth(): string {
+  return getVietnamYearMonth(new Date());
+}
+
+
+

@@ -10,9 +10,14 @@ import {
   OrderPaymentRecord,
   SalesTransaction,
   SalesTransactionItem,
+  MonthlyProductStat,
+  MonthlyStatistics,
   getOrderPaidAmount,
   getOrderRemainingAmount,
-  compareAdminOrders
+  compareAdminOrders,
+  getVietnamDateStr,
+  getVietnamYearMonth,
+  getVietnamCurrentMonth
 } from '../types';
 import { categories as initialCategories } from '../data/categories';
 import { products as initialProducts } from '../data/products';
@@ -37,7 +42,8 @@ const STORAGE_KEYS = {
   ORDERS: 'ana_db_orders',
   ORDER_SEQ: 'ana_db_order_seq',
   SALES_TRANSACTIONS: 'ana_db_sales_transactions',
-  SALES_TRANSACTION_ITEMS: 'ana_db_sales_transaction_items'
+  SALES_TRANSACTION_ITEMS: 'ana_db_sales_transaction_items',
+  MONTHLY_STATISTICS: 'ana_db_monthly_statistics'
 };
 
 type OrderListener = (order: OrderRecord, isNew: boolean) => void;
@@ -49,10 +55,12 @@ class StoreService {
   private orders: OrderRecord[] = [];
   private salesTransactions: SalesTransaction[] = [];
   private salesTransactionItems: SalesTransactionItem[] = [];
+  private monthlyStatistics: MonthlyStatistics[] = [];
   private orderSeq: number = 1020;
   private orderListeners: Set<OrderListener> = new Set();
   private tableListeners: Map<number, Set<TableStatusListener>> = new Map();
   private salesListeners: Set<(transactions: SalesTransaction[]) => void> = new Set();
+  private monthlyStatsListeners: Set<(stats: MonthlyStatistics[]) => void> = new Set();
   private broadcastChannel: BroadcastChannel | null = null;
   private isInitialized: boolean = false;
   private itemRefreshTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
@@ -62,6 +70,8 @@ class StoreService {
     this.initBroadcast();
     this.initSupabaseRealtime();
     this.fetchSalesLedger();
+    this.fetchMonthlyStatistics();
+    this.runMonthlyCleanup();
   }
 
   private initData() {
@@ -168,6 +178,16 @@ class StoreService {
       this.salesTransactionItems = [];
     }
 
+    // Load monthly statistics snapshot history
+    try {
+      const savedMonthlyStats = localStorage.getItem(STORAGE_KEYS.MONTHLY_STATISTICS);
+      if (savedMonthlyStats) {
+        this.monthlyStatistics = JSON.parse(savedMonthlyStats);
+      }
+    } catch {
+      this.monthlyStatistics = [];
+    }
+
     this.isInitialized = true;
   }
 
@@ -206,6 +226,35 @@ class StoreService {
             this.salesTransactionItems = payload.items;
           }
           this.notifySalesListeners();
+        } else if (type === 'SYNC_MONTHLY_STATISTICS' && Array.isArray(payload)) {
+          this.monthlyStatistics = payload;
+          this.notifyMonthlyStatsListeners();
+        } else if (type === 'DELETE_ORDERS' && Array.isArray(payload?.orderIds)) {
+          const deleteSet = new Set<string>(payload.orderIds);
+          const deletedOrders = this.orders.filter(o => deleteSet.has(o.id));
+          this.orders = this.orders.filter(o => !deleteSet.has(o.id));
+          this.saveOrders();
+          deletedOrders.forEach(ord => {
+            try {
+              const savedOrdersKey = `ana_session_orders_table_${ord.tableNumber}`;
+              const savedOrdersStr = localStorage.getItem(savedOrdersKey);
+              if (savedOrdersStr) {
+                const arr = JSON.parse(savedOrdersStr);
+                if (Array.isArray(arr)) {
+                  const filtered = arr.filter((id: string) => id !== ord.id);
+                  localStorage.setItem(savedOrdersKey, JSON.stringify(filtered));
+                }
+              }
+              const activeKey = `ana_active_order_table_${ord.tableNumber}`;
+              if (localStorage.getItem(activeKey) === ord.id) {
+                localStorage.removeItem(activeKey);
+              }
+            } catch {
+              // ignore
+            }
+            this.notifyOrderListeners(ord, false);
+            this.notifyTableListeners(ord);
+          });
         }
       };
     }
@@ -255,6 +304,14 @@ class StoreService {
               this.notifySalesListeners();
             }
           } catch {}
+        } else if (e.key === STORAGE_KEYS.MONTHLY_STATISTICS && e.newValue) {
+          try {
+            const parsedStats = JSON.parse(e.newValue);
+            if (Array.isArray(parsedStats)) {
+              this.monthlyStatistics = parsedStats;
+              this.notifyMonthlyStatsListeners();
+            }
+          } catch {}
         }
       });
     }
@@ -276,7 +333,7 @@ class StoreService {
       }
     }
 
-    console.log('[ADMIN REALTIME] Initializing Supabase Realtime for orders, order_items & sales ledger...');
+    console.log('[ADMIN REALTIME] Initializing Supabase Realtime for orders, order_items, sales ledger & monthly statistics...');
     this.realtimeChannel = supabase
       .channel('ana_admin_realtime_channel')
       .on(
@@ -375,16 +432,25 @@ class StoreService {
           await this.fetchSalesLedger();
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'monthly_statistics' },
+        async () => {
+          console.log('[ADMIN REALTIME] MONTHLY_STATISTICS change received');
+          await this.fetchMonthlyStatistics();
+        }
+      )
       .subscribe((status, err) => {
         console.log('[ADMIN REALTIME] Status:', status, err || '');
         if (status === 'SUBSCRIBED') {
-          console.log('[ADMIN REALTIME] ✅ SUBSCRIBED successfully to orders, items & sales ledger');
+          console.log('[ADMIN REALTIME] ✅ SUBSCRIBED successfully to orders, items, sales ledger & monthly statistics');
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           console.warn('[ADMIN REALTIME] ⚠️ Connection interrupted (' + status + '). Reconnecting...');
           setTimeout(() => {
             this.initSupabaseRealtime();
             this.fetchOrders();
             this.fetchSalesLedger();
+            this.fetchMonthlyStatistics();
           }, 3000);
         }
       });
@@ -431,6 +497,411 @@ class StoreService {
     } catch {
       // ignore
     }
+  }
+
+  // --- MONTHLY STATISTICS SNAPSHOT & SAFE CLEANUP API ---
+  private saveMonthlyStatistics() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.MONTHLY_STATISTICS, JSON.stringify(this.monthlyStatistics));
+      this.broadcastChannel?.postMessage({
+        type: 'SYNC_MONTHLY_STATISTICS',
+        payload: this.monthlyStatistics
+      });
+      this.notifyMonthlyStatsListeners();
+    } catch {
+      // ignore
+    }
+  }
+
+  public getMonthlyStatistics(): MonthlyStatistics[] {
+    return [...this.monthlyStatistics].sort((a, b) => b.month.localeCompare(a.month));
+  }
+
+  public subscribeToMonthlyStats(listener: (stats: MonthlyStatistics[]) => void): () => void {
+    this.monthlyStatsListeners.add(listener);
+    listener(this.getMonthlyStatistics());
+    return () => {
+      this.monthlyStatsListeners.delete(listener);
+    };
+  }
+
+  private notifyMonthlyStatsListeners() {
+    const sorted = this.getMonthlyStatistics();
+    this.monthlyStatsListeners.forEach(listener => {
+      try {
+        listener(sorted);
+      } catch {
+        // ignore
+      }
+    });
+  }
+
+  public async fetchMonthlyStatistics(): Promise<MonthlyStatistics[]> {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('monthly_statistics')
+          .select('*')
+          .order('month', { ascending: false });
+
+        if (!error && data && Array.isArray(data)) {
+          const mapped: MonthlyStatistics[] = data.map((raw: any) => ({
+            month: String(raw.month),
+            revenue: Number(raw.revenue || 0),
+            completedOrders: Number(raw.completed_orders || 0),
+            itemsSold: Number(raw.items_sold || 0),
+            averageOrderValue: Number(raw.average_order_value || 0),
+            productStats: Array.isArray(raw.product_stats) ? raw.product_stats : [],
+            createdAt: String(raw.created_at || new Date().toISOString()),
+            updatedAt: String(raw.updated_at || new Date().toISOString())
+          }));
+
+          const map = new Map<string, MonthlyStatistics>();
+          this.monthlyStatistics.forEach(s => map.set(s.month, s));
+          mapped.forEach(s => map.set(s.month, s));
+          this.monthlyStatistics = Array.from(map.values()).sort((a, b) => b.month.localeCompare(a.month));
+          this.saveMonthlyStatistics();
+          return this.monthlyStatistics;
+        }
+      } catch (err) {
+        console.warn('[MONTHLY_STATS] Error fetching monthly statistics from Supabase:', err);
+      }
+    }
+    return this.getMonthlyStatistics();
+  }
+
+  public getMonthlyStatsDetail(yearMonth: string): MonthlyStatistics {
+    const snapshot = this.monthlyStatistics.find(s => s.month === yearMonth);
+    const liveOrders = this.orders.filter(o => 
+      o.status === 'COMPLETED' && o.completedAt && getVietnamYearMonth(o.completedAt) === yearMonth
+    );
+
+    if (liveOrders.length === 0 && snapshot) {
+      return snapshot;
+    }
+
+    const liveRevenue = liveOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const liveCompletedCount = liveOrders.length;
+    const liveItemsSold = liveOrders.reduce((sum, o) =>
+      sum + o.items.reduce((isum, it) => isum + Number(it.quantity || 1), 0), 0
+    );
+    const liveAov = liveCompletedCount > 0 ? Math.round(liveRevenue / liveCompletedCount) : 0;
+
+    const prodMap: Record<string, { id: string; name: string; category: string; image: string; qty: number; rev: number }> = {};
+    
+    if (snapshot?.productStats && liveOrders.length === 0) {
+      snapshot.productStats.forEach(p => {
+        prodMap[p.productId] = {
+          id: p.productId,
+          name: p.productName,
+          category: p.category,
+          image: p.image,
+          qty: p.quantity,
+          rev: p.revenue
+        };
+      });
+    } else {
+      liveOrders.forEach(o => {
+        o.items.forEach(it => {
+          if (!prodMap[it.productId]) {
+            const found = this.products.find(p => p.id === it.productId);
+            prodMap[it.productId] = {
+              id: it.productId,
+              name: it.productName,
+              category: found?.category || 'menu',
+              image: it.image || found?.image || '/coffee_img/1.png',
+              qty: 0,
+              rev: 0
+            };
+          }
+          prodMap[it.productId].qty += Number(it.quantity || 1);
+          prodMap[it.productId].rev += Number(it.totalPrice || (it.unitPrice * it.quantity));
+        });
+      });
+    }
+
+    const productStats: MonthlyProductStat[] = Object.values(prodMap)
+      .sort((a, b) => b.qty - a.qty || b.rev - a.rev)
+      .map(p => ({
+        productId: p.id,
+        productName: p.name,
+        category: p.category,
+        image: p.image,
+        quantity: p.qty,
+        revenue: p.rev
+      }));
+
+    if (snapshot && liveOrders.length === 0) {
+      return snapshot;
+    }
+
+    return {
+      month: yearMonth,
+      revenue: Math.max(snapshot?.revenue || 0, liveRevenue),
+      completedOrders: Math.max(snapshot?.completedOrders || 0, liveCompletedCount),
+      itemsSold: Math.max(snapshot?.itemsSold || 0, liveItemsSold),
+      averageOrderValue: Math.max(snapshot?.averageOrderValue || 0, liveAov),
+      productStats: productStats.length > 0 ? productStats : (snapshot?.productStats || []),
+      createdAt: snapshot?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  public async runMonthlyCleanup(): Promise<{ cleanedCount: number; snapshotsCreated: number }> {
+    const currentMonthStr = getVietnamCurrentMonth();
+    if (!currentMonthStr) return { cleanedCount: 0, snapshotsCreated: 0 };
+
+    // 1. Identify ONLY orders where:
+    //    - status === 'COMPLETED'
+    //    - completedAt is present and in Vietnam timezone strictly < currentMonthStr
+    // 2. Strict safety: NEVER delete any order where status !== 'COMPLETED' (NEW, CONFIRMED, PREPARING, READY, CANCELLED, etc.)
+    // 3. Strict safety: NEVER delete any order completed in the current month!
+    const oldCompletedOrders = this.orders.filter(o => {
+      if (o.status !== 'COMPLETED' || !o.completedAt) return false;
+      const orderMonthStr = getVietnamYearMonth(o.completedAt);
+      return orderMonthStr !== '' && orderMonthStr < currentMonthStr;
+    });
+
+    if (oldCompletedOrders.length === 0) {
+      return { cleanedCount: 0, snapshotsCreated: 0 };
+    }
+
+    const ordersByMonth: Record<string, OrderRecord[]> = {};
+    oldCompletedOrders.forEach(o => {
+      const mStr = getVietnamYearMonth(o.completedAt!);
+      if (mStr && mStr < currentMonthStr) {
+        if (!ordersByMonth[mStr]) ordersByMonth[mStr] = [];
+        ordersByMonth[mStr].push(o);
+      }
+    });
+
+    let snapshotsCreated = 0;
+    const orderIdsToDelete: string[] = [];
+
+    for (const [monthStr, monthOrders] of Object.entries(ordersByMonth)) {
+      const existingSnapshot = this.monthlyStatistics.find(s => s.month === monthStr);
+
+      const monthRevenue = monthOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+      const completedOrdersCount = monthOrders.length;
+      const itemsSold = monthOrders.reduce((sum, o) => 
+        sum + o.items.reduce((isum, it) => isum + Number(it.quantity || 1), 0), 0
+      );
+      const aov = completedOrdersCount > 0 ? Math.round(monthRevenue / completedOrdersCount) : 0;
+
+      const prodMap: Record<string, { id: string; name: string; category: string; image: string; qty: number; rev: number }> = {};
+      monthOrders.forEach(o => {
+        o.items.forEach(it => {
+          if (!prodMap[it.productId]) {
+            const found = this.products.find(p => p.id === it.productId);
+            prodMap[it.productId] = {
+              id: it.productId,
+              name: it.productName,
+              category: found?.category || 'menu',
+              image: it.image || found?.image || '/coffee_img/1.png',
+              qty: 0,
+              rev: 0
+            };
+          }
+          prodMap[it.productId].qty += Number(it.quantity || 1);
+          prodMap[it.productId].rev += Number(it.totalPrice || (it.unitPrice * it.quantity));
+        });
+      });
+
+      const productStats: MonthlyProductStat[] = Object.values(prodMap)
+        .sort((a, b) => b.qty - a.qty || b.rev - a.rev)
+        .map(p => ({
+          productId: p.id,
+          productName: p.name,
+          category: p.category,
+          image: p.image,
+          quantity: p.qty,
+          revenue: p.rev
+        }));
+
+      const nowIso = new Date().toISOString();
+      let snapshotToSave: MonthlyStatistics;
+
+      if (existingSnapshot) {
+        snapshotToSave = {
+          ...existingSnapshot,
+          revenue: Math.max(existingSnapshot.revenue, monthRevenue),
+          completedOrders: Math.max(existingSnapshot.completedOrders, completedOrdersCount),
+          itemsSold: Math.max(existingSnapshot.itemsSold, itemsSold),
+          averageOrderValue: Math.max(existingSnapshot.averageOrderValue, aov),
+          productStats: existingSnapshot.productStats.length > 0 ? existingSnapshot.productStats : productStats,
+          updatedAt: nowIso
+        };
+      } else {
+        snapshotToSave = {
+          month: monthStr,
+          revenue: monthRevenue,
+          completedOrders: completedOrdersCount,
+          itemsSold,
+          averageOrderValue: aov,
+          productStats,
+          createdAt: nowIso,
+          updatedAt: nowIso
+        };
+        snapshotsCreated++;
+      }
+
+      let isSnapshotPersisted = false;
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const { error } = await supabase.from('monthly_statistics').upsert({
+            month: snapshotToSave.month,
+            revenue: snapshotToSave.revenue,
+            completed_orders: snapshotToSave.completedOrders,
+            items_sold: snapshotToSave.itemsSold,
+            average_order_value: snapshotToSave.averageOrderValue,
+            product_stats: snapshotToSave.productStats,
+            created_at: snapshotToSave.createdAt,
+            updated_at: snapshotToSave.updatedAt
+          }, { onConflict: 'month' });
+
+          if (!error) {
+            isSnapshotPersisted = true;
+          } else {
+            console.warn('[CLEANUP] Failed to upsert snapshot to Supabase:', error);
+          }
+        } catch (err) {
+          console.warn('[CLEANUP] Supabase upsert exception:', err);
+        }
+      } else {
+        isSnapshotPersisted = true;
+      }
+
+      this.monthlyStatistics = [
+        snapshotToSave,
+        ...this.monthlyStatistics.filter(s => s.month !== snapshotToSave.month)
+      ].sort((a, b) => b.month.localeCompare(a.month));
+      this.saveMonthlyStatistics();
+
+      if (isSnapshotPersisted) {
+        monthOrders.forEach(o => orderIdsToDelete.push(o.id));
+      }
+    }
+
+    if (orderIdsToDelete.length > 0) {
+      const deleteSet = new Set(orderIdsToDelete);
+      this.orders = this.orders.filter(o => !deleteSet.has(o.id));
+      this.saveOrders();
+
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('orders').delete().in('id', orderIdsToDelete);
+          console.log(`[CLEANUP] Safely purged ${orderIdsToDelete.length} past completed orders after snapshot verification.`);
+        } catch (err) {
+          console.warn('[CLEANUP] Error purging old orders from Supabase:', err);
+        }
+      }
+    }
+
+    return { cleanedCount: orderIdsToDelete.length, snapshotsCreated };
+  }
+
+  /**
+   * Auto-purge unaccepted orders after 1 hour (status === 'NEW' and now - createdAt >= 1 hour).
+   * Safe, idempotent, preserves accepted/confirmed orders, and protects paid orders.
+   */
+  public async cleanupExpiredUnacceptedOrders(): Promise<{ deletedCount: number; deletedOrderIds: string[] }> {
+    const ONE_HOUR_MS = 60 * 60 * 1000;
+    const now = Date.now();
+    const thresholdIso = new Date(now - ONE_HOUR_MS).toISOString();
+
+    // 1. Identify ONLY orders where:
+    //    - status === 'NEW' (strictly unaccepted by Admin)
+    //    - createdAt is older than 1 hour (now - createdAt >= 1 hour)
+    //    - Payment safety: unpaid (paymentStatus !== 'PAID' and paidAmount === 0 and paymentStatus !== 'VERIFYING')
+    const expiredOrders = this.orders.filter(o => {
+      if (o.status !== 'NEW') return false;
+      if (!o.createdAt) return false;
+      const createdTime = new Date(o.createdAt).getTime();
+      if (isNaN(createdTime)) return false;
+      if (now - createdTime < ONE_HOUR_MS) return false;
+
+      // Payment safety: never auto-delete paid transactions or pending proof verifications
+      const isPaid = o.paymentStatus === 'PAID' || (o.paidAmount && o.paidAmount > 0);
+      const isVerifying = o.paymentStatus === 'VERIFYING';
+      if (isPaid || isVerifying) return false;
+
+      return true;
+    });
+
+    if (expiredOrders.length === 0) {
+      return { deletedCount: 0, deletedOrderIds: [] };
+    }
+
+    const expiredOrderIds = expiredOrders.map(o => o.id);
+    const expiredSet = new Set(expiredOrderIds);
+
+    console.log(`[EXPIRED_CLEANUP] Found ${expiredOrderIds.length} unaccepted expired order(s) (>1h). Hard deleting...`, expiredOrderIds);
+
+    // 2. Remove from local memory
+    this.orders = this.orders.filter(o => !expiredSet.has(o.id));
+    this.saveOrders();
+
+    // 3. Clean up table session localStorage keys to avoid ghost references
+    expiredOrders.forEach(ord => {
+      try {
+        const savedOrdersKey = `ana_session_orders_table_${ord.tableNumber}`;
+        const savedOrdersStr = localStorage.getItem(savedOrdersKey);
+        if (savedOrdersStr) {
+          const arr = JSON.parse(savedOrdersStr);
+          if (Array.isArray(arr)) {
+            const filtered = arr.filter((id: string) => id !== ord.id);
+            localStorage.setItem(savedOrdersKey, JSON.stringify(filtered));
+          }
+        }
+        const activeKey = `ana_active_order_table_${ord.tableNumber}`;
+        if (localStorage.getItem(activeKey) === ord.id) {
+          localStorage.removeItem(activeKey);
+        }
+      } catch {
+        // ignore
+      }
+    });
+
+    // 4. Hard delete from Supabase with race condition protection
+    if (isSupabaseConfigured && supabase) {
+      try {
+        // Condition: delete only if status is STILL 'NEW' and created_at <= threshold
+        const { error: delErr } = await supabase
+          .from('orders')
+          .delete()
+          .in('id', expiredOrderIds)
+          .eq('status', 'NEW')
+          .lte('created_at', thresholdIso);
+
+        if (delErr) {
+          console.warn('[EXPIRED_CLEANUP] Supabase error deleting expired orders:', delErr);
+        } else {
+          console.log(`[EXPIRED_CLEANUP] Supabase purged ${expiredOrderIds.length} expired unaccepted orders.`);
+        }
+
+        try {
+          await supabase.from('order_payments').delete().in('order_id', expiredOrderIds);
+        } catch {
+          // ignore
+        }
+      } catch (err) {
+        console.warn('[EXPIRED_CLEANUP] Exception deleting expired orders from Supabase:', err);
+      }
+    }
+
+    // 5. Broadcast to other tabs
+    this.broadcastChannel?.postMessage({
+      type: 'DELETE_ORDERS',
+      payload: { orderIds: expiredOrderIds }
+    });
+
+    // 6. Notify listeners
+    expiredOrders.forEach(ord => {
+      this.notifyOrderListeners(ord, false);
+      this.notifyTableListeners(ord);
+    });
+
+    return { deletedCount: expiredOrderIds.length, deletedOrderIds: expiredOrderIds };
   }
 
   public getSalesTransactions(): SalesTransaction[] {
@@ -594,6 +1065,10 @@ class StoreService {
   }
 
   public deleteProduct(id: string): boolean {
+    const prod = this.products.find(p => p.id === id);
+    if (prod && prod.image) {
+      this.deleteProductImage(prod.image).catch(() => {});
+    }
     this.products = this.products.filter(p => p.id !== id);
     this.saveProducts();
     return true;
@@ -603,6 +1078,100 @@ class StoreService {
     const product = this.products.find(p => p.id === id);
     if (!product) return null;
     return this.updateProduct(id, { isAvailable: !product.isAvailable });
+  }
+
+  // --- PRODUCT IMAGE STORAGE API ---
+  public async uploadProductImage(file: File): Promise<string> {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!allowedTypes.includes(file.type.toLowerCase())) {
+      throw new Error('Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP');
+    }
+
+    const maxBytes = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxBytes) {
+      throw new Error('Ảnh không được lớn hơn 5MB');
+    }
+
+    if (!isSupabaseConfigured || !supabase) {
+      throw new Error('Supabase Storage chưa được cấu hình. Vui lòng kiểm tra file cấu hình .env.');
+    }
+
+    const rawExt = file.name.split('.').pop()?.toLowerCase() || '';
+    const ext = ['jpg', 'jpeg', 'png', 'webp'].includes(rawExt)
+      ? rawExt
+      : file.type === 'image/png'
+      ? 'png'
+      : file.type === 'image/webp'
+      ? 'webp'
+      : 'jpg';
+
+    const filePath = `products/${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
+
+    try {
+      const { error: uploadErr } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadErr) {
+        console.error('[STORAGE] Upload product image failed:', uploadErr);
+        throw new Error(uploadErr.message || 'Không thể tải ảnh lên Supabase Storage. Vui lòng thử lại.');
+      }
+
+      const { data: publicUrlData } = supabase.storage.from('product-images').getPublicUrl(filePath);
+      if (!publicUrlData?.publicUrl) {
+        throw new Error('Không thể lấy Public URL từ Supabase Storage.');
+      }
+
+      return publicUrlData.publicUrl;
+    } catch (err: any) {
+      console.error('[STORAGE] Upload product image exception:', err);
+      throw new Error(err.message || 'Có lỗi xảy ra khi tải ảnh lên máy chủ.');
+    }
+  }
+
+  public async deleteProductImage(imageUrl: string): Promise<void> {
+    if (!imageUrl || !isSupabaseConfigured || !supabase) return;
+
+    // Do not delete local assets
+    if (
+      imageUrl.startsWith('/coffee_img/') ||
+      imageUrl.startsWith('/trasua_img/') ||
+      imageUrl.startsWith('/tra_img/') ||
+      imageUrl.startsWith('/sinhto_img/') ||
+      imageUrl.startsWith('/smoothie_img/') ||
+      imageUrl.startsWith('/soda_img/') ||
+      imageUrl.startsWith('/xoi_img/') ||
+      imageUrl.startsWith('/images/') ||
+      imageUrl.startsWith('/sounds/') ||
+      imageUrl.startsWith('/videos/')
+    ) {
+      return;
+    }
+
+    // Only delete if it belongs to product-images bucket
+    if (!imageUrl.includes('/product-images/')) {
+      return;
+    }
+
+    try {
+      const parts = imageUrl.split('/product-images/');
+      if (parts.length < 2) return;
+      const filePath = decodeURIComponent(parts[1].split('?')[0]);
+
+      if (filePath) {
+        const { error } = await supabase.storage.from('product-images').remove([filePath]);
+        if (error) {
+          console.warn('[STORAGE] Delete product image warning:', error);
+        } else {
+          console.log('[STORAGE] Deleted old product image from storage:', filePath);
+        }
+      }
+    } catch (err) {
+      console.warn('[STORAGE] Delete product image exception:', err);
+    }
   }
 
   // --- ORDERS & REALTIME API ---
@@ -748,7 +1317,8 @@ class StoreService {
           });
           this.orderSeq = Math.max(this.orderSeq, maxSeq);
           this.saveOrders();
-          console.log('[ORDERS] Fetched result count:', mappedOrders.length, 'Next seq:', this.orderSeq);
+          await this.cleanupExpiredUnacceptedOrders();
+          console.log('[ORDERS] Fetched result count:', this.orders.length, 'Next seq:', this.orderSeq);
           return this.orders;
         }
       } catch (err) {
@@ -756,6 +1326,7 @@ class StoreService {
       }
     }
 
+    await this.cleanupExpiredUnacceptedOrders();
     return this.getOrders();
   }
 
@@ -902,10 +1473,11 @@ class StoreService {
       .sort(compareAdminOrders);
   }
 
-  public getTableOpenOrder(tableNumber: number): OrderRecord | null {
+  public getTableOpenOrder(tableNumber: number, orderSessionId?: string): OrderRecord | null {
     const found = this.orders
       .filter(o => {
         if (o.tableNumber !== tableNumber || o.status !== 'NEW') return false;
+        if (orderSessionId && o.orderSessionId && o.orderSessionId !== orderSessionId) return false;
         // Lock open order if already PAID or if customer has submitted proof (VERIFYING)
         if (o.paymentStatus === 'PAID') return false;
         if (o.paymentMethod === 'BANK_TRANSFER' && o.paymentStatus === 'VERIFYING') return false;
@@ -1071,7 +1643,8 @@ class StoreService {
           paymentSubmittedAt: dbCheck.payment_submitted_at ? String(dbCheck.payment_submitted_at) : undefined,
           paymentVerifiedAt: dbCheck.payment_verified_at ? String(dbCheck.payment_verified_at) : undefined,
           paymentVerifiedBy: dbCheck.payment_verified_by ? String(dbCheck.payment_verified_by) : undefined,
-          createdAt: String(dbCheck.created_at)
+          createdAt: String(dbCheck.created_at),
+          orderSessionId: existingLocal?.orderSessionId
         };
       } catch (err) {
         console.warn('[ORDER] Supabase check error in appendItemsToOrder:', err);
@@ -1338,9 +1911,10 @@ class StoreService {
     paymentMethod?: PaymentMethod;
     paymentProofPath?: string;
     paymentSubmittedAt?: string;
+    orderSessionId?: string;
     items: Omit<OrderRecord['items'][0], 'id' | 'orderId'>[];
   }): Promise<OrderRecord> {
-    console.log('[ORDER] Submit started for table:', params.tableNumber);
+    console.log('[ORDER] Submit started for table:', params.tableNumber, 'Session:', params.orderSessionId);
 
     // 1. Calculate highest existing sequence across local memory
     let maxSeq = 1000;
@@ -1432,7 +2006,8 @@ class StoreService {
         paymentProofPath: params.paymentProofPath,
         paymentSubmittedAt: params.paymentSubmittedAt || (params.paymentProofPath ? createdAt : undefined),
         createdAt,
-        updatedAt: createdAt
+        updatedAt: createdAt,
+        orderSessionId: params.orderSessionId
       };
 
       console.log(`[ORDER] Attempt ${attempt + 1}: Payload ${orderNumber}, Items: ${newOrder.items.length}`);
@@ -1591,6 +2166,9 @@ class StoreService {
     this.broadcastChannel?.postMessage({ type: 'UPDATE_ORDER_STATUS', payload: updatedOrder });
     this.notifyOrderListeners(updatedOrder, false);
     this.notifyTableListeners(updatedOrder);
+    if (status === 'COMPLETED') {
+      this.notifyMonthlyStatsListeners();
+    }
 
     // Async persist to Supabase if configured
     if (isSupabaseConfigured && supabase) {
@@ -2707,12 +3285,13 @@ class StoreService {
     }
   }
 
-  // --- REVENUE & KPI CALCULATIONS FROM IMMUTABLE SALES LEDGER ---
-  public getRevenueStats(selectedYear?: number) {
+  // --- REVENUE & KPI CALCULATIONS FROM IMMUTABLE SALES LEDGER & MONTHLY SNAPSHOTS ---
+  public getRevenueStats(selectedYear?: number, selectedMonth?: number) {
     const now = new Date();
-    const currentYear = selectedYear || now.getFullYear();
-    const currentMonth = now.getMonth(); // 0-11
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayVietnamDateStr = getVietnamDateStr(now); // "YYYY-MM-DD"
+    const currentVietnamMonthStr = getVietnamCurrentMonth(); // "YYYY-MM"
+    const currentYear = selectedYear || (parseInt(currentVietnamMonthStr.slice(0, 4), 10) || now.getFullYear());
+    const currentMonthNum = parseInt(currentVietnamMonthStr.slice(5, 7), 10) || (now.getMonth() + 1);
 
     const hasLedger = this.salesTransactions.length > 0;
 
@@ -2728,127 +3307,51 @@ class StoreService {
     const monthlyBreakdown: { month: number; label: string; total: number; orderCount: number }[] = [];
     let topProducts: TopProductSales[] = [];
 
+    // Filter live completed orders with completedAt in Vietnam timezone
+    const liveCompletedOrders = this.orders.filter(o => o.status === 'COMPLETED' && o.completedAt);
+
+    // 1. Today Stats (Vietnam timezone)
     if (hasLedger) {
-      // 1. Transactions filtered by dates (Confirmed Sales Only)
-      const todayTxs = this.salesTransactions.filter(t => t.confirmedAt?.startsWith(todayStr));
+      const todayTxs = this.salesTransactions.filter(t => {
+        const txDateStr = getVietnamDateStr(t.confirmedAt || t.createdAt);
+        return txDateStr === todayVietnamDateStr;
+      });
       todayRevenue = todayTxs.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-
-      const monthTxs = this.salesTransactions.filter(t => {
-        const d = new Date(t.confirmedAt);
-        return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
-      });
-      monthRevenue = monthTxs.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-
-      const yearTxs = this.salesTransactions.filter(t => {
-        const d = new Date(t.confirmedAt);
-        return d.getFullYear() === currentYear;
-      });
-      yearRevenue = yearTxs.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-
-      const distinctOrderIds = new Set(this.salesTransactions.map(t => t.orderId));
-      totalCompletedOrders = distinctOrderIds.size;
       const todayOrderIds = new Set(todayTxs.map(t => t.orderId));
       completedTodayCount = todayOrderIds.size;
 
-      // 2. Items sold (Strictly SUM(quantity) from immutable snapshot rows)
-      const todayItemRecords = this.salesTransactionItems.filter(ti => ti.createdAt?.startsWith(todayStr));
-      totalItemsSoldToday = todayItemRecords.reduce((sum, ti) => sum + Number(ti.quantity || 1), 0);
-
-      const yearItemRecords = this.salesTransactionItems.filter(ti => {
-        const d = new Date(ti.createdAt);
-        return d.getFullYear() === currentYear;
+      const todayItemRecords = this.salesTransactionItems.filter(ti => {
+        const itemDateStr = getVietnamDateStr(ti.createdAt);
+        return itemDateStr === todayVietnamDateStr;
       });
-      totalItemsSoldYear = yearItemRecords.reduce((sum, ti) => sum + Number(ti.quantity || 1), 0);
+      totalItemsSoldToday = todayItemRecords.reduce((sum, ti) => sum + Number(ti.quantity || 1), 0);
+    } else {
+      const todayOrders = liveCompletedOrders.filter(o => getVietnamDateStr(o.completedAt) === todayVietnamDateStr);
+      todayRevenue = todayOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+      completedTodayCount = todayOrders.length;
+      totalItemsSoldToday = todayOrders.reduce((sum, o) => 
+        sum + o.items.reduce((isum, it) => isum + Number(it.quantity || 1), 0), 0
+      );
+    }
 
-      // 3. 7 Days Breakdown
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-        const dStr = d.toISOString().slice(0, 10);
-        const dayName = i === 0 ? 'Hôm nay' : `${d.getDate()}/${d.getMonth() + 1}`;
-        const dayTxs = this.salesTransactions.filter(t => t.confirmedAt?.startsWith(dStr));
+    // 2. 7 Days Breakdown (Vietnam timezone)
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const dStr = getVietnamDateStr(d);
+      const dayName = i === 0 ? 'Hôm nay' : `${d.getDate()}/${d.getMonth() + 1}`;
+      
+      if (hasLedger) {
+        const dayTxs = this.salesTransactions.filter(t => getVietnamDateStr(t.confirmedAt || t.createdAt) === dStr);
         const total = dayTxs.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-
         last7Days.push({
           date: dStr,
           label: dayName,
           total,
           orderCount: dayTxs.length
         });
-      }
-
-      // 4. 12 Months Breakdown for selected year
-      for (let mIdx = 0; mIdx < 12; mIdx++) {
-        const mTxs = this.salesTransactions.filter(t => {
-          const d = new Date(t.confirmedAt);
-          return d.getFullYear() === currentYear && d.getMonth() === mIdx;
-        });
-        const total = mTxs.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-        monthlyBreakdown.push({
-          month: mIdx + 1,
-          label: `Tháng ${mIdx + 1}`,
-          total,
-          orderCount: mTxs.length
-        });
-      }
-
-      // 5. Top Selling Products (From immutable snapshot salesTransactionItems)
-      const productSalesMap: Record<string, { id: string; name: string; category: string; image: string; qty: number; rev: number }> = {};
-
-      this.salesTransactionItems.forEach(item => {
-        if (!productSalesMap[item.productId]) {
-          const foundProd = this.products.find(p => p.id === item.productId);
-          productSalesMap[item.productId] = {
-            id: item.productId,
-            name: item.productName,
-            category: item.category || foundProd?.category || 'menu',
-            image: item.image || foundProd?.image || '/coffee_img/1.png',
-            qty: 0,
-            rev: 0
-          };
-        }
-        productSalesMap[item.productId].qty += Number(item.quantity || 1);
-        productSalesMap[item.productId].rev += Number(item.totalPrice || 0);
-      });
-
-      topProducts = Object.values(productSalesMap)
-        .sort((a, b) => b.qty - a.qty || b.rev - a.rev)
-        .slice(0, 10)
-        .map(p => ({
-          productId: p.id,
-          productName: p.name,
-          category: p.category,
-          image: p.image,
-          totalQuantity: p.qty,
-          totalRevenue: p.rev
-        }));
-    } else {
-      // Fallback calculation for pre-ledger orders
-      const completedOrders = this.orders.filter(o => (o.status === 'COMPLETED' || o.paymentStatus === 'PAID') && o.completedAt);
-      const todayOrders = completedOrders.filter(o => o.completedAt?.startsWith(todayStr));
-      todayRevenue = todayOrders.reduce((sum, o) => sum + o.total, 0);
-
-      const monthOrders = completedOrders.filter(o => {
-        const d = new Date(o.completedAt!);
-        return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
-      });
-      monthRevenue = monthOrders.reduce((sum, o) => sum + o.total, 0);
-
-      const yearOrders = completedOrders.filter(o => {
-        const d = new Date(o.completedAt!);
-        return d.getFullYear() === currentYear;
-      });
-      yearRevenue = yearOrders.reduce((sum, o) => sum + o.total, 0);
-
-      totalCompletedOrders = completedOrders.length;
-      completedTodayCount = todayOrders.length;
-
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-        const dStr = d.toISOString().slice(0, 10);
-        const dayName = i === 0 ? 'Hôm nay' : `${d.getDate()}/${d.getMonth() + 1}`;
-        const dayMatches = completedOrders.filter(o => o.completedAt?.startsWith(dStr));
-        const total = dayMatches.reduce((sum, o) => sum + o.total, 0);
-
+      } else {
+        const dayMatches = liveCompletedOrders.filter(o => getVietnamDateStr(o.completedAt) === dStr);
+        const total = dayMatches.reduce((sum, o) => sum + Number(o.total || 0), 0);
         last7Days.push({
           date: dStr,
           label: dayName,
@@ -2856,70 +3359,171 @@ class StoreService {
           orderCount: dayMatches.length
         });
       }
+    }
 
-      for (let mIdx = 0; mIdx < 12; mIdx++) {
-        const mMatches = completedOrders.filter(o => {
-          const d = new Date(o.completedAt!);
-          return d.getFullYear() === currentYear && d.getMonth() === mIdx;
+    // 3. 12 Months Breakdown for selectedYear (seamlessly combining live orders + snapshots)
+    for (let mIdx = 0; mIdx < 12; mIdx++) {
+      const mNum = mIdx + 1;
+      const mKey = `${currentYear}-${String(mNum).padStart(2, '0')}`;
+      const snap = this.monthlyStatistics.find(s => s.month === mKey);
+
+      let mTotal = 0;
+      let mCount = 0;
+
+      if (hasLedger) {
+        const mTxs = this.salesTransactions.filter(t => {
+          const tMonthStr = getVietnamYearMonth(t.confirmedAt || t.createdAt);
+          return tMonthStr === mKey;
         });
-        const total = mMatches.reduce((sum, o) => sum + o.total, 0);
-        monthlyBreakdown.push({
-          month: mIdx + 1,
-          label: `Tháng ${mIdx + 1}`,
-          total,
-          orderCount: mMatches.length
-        });
+        const ledgerRev = mTxs.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+        const ledgerCount = new Set(mTxs.map(t => t.orderId)).size;
+        mTotal = snap ? Math.max(snap.revenue, ledgerRev) : ledgerRev;
+        mCount = snap ? Math.max(snap.completedOrders, ledgerCount) : ledgerCount;
+      } else {
+        const mOrders = liveCompletedOrders.filter(o => getVietnamYearMonth(o.completedAt) === mKey);
+        const liveRev = mOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+        const liveCount = mOrders.length;
+        mTotal = snap ? Math.max(snap.revenue, liveRev) : liveRev;
+        mCount = snap ? Math.max(snap.completedOrders, liveCount) : liveCount;
       }
 
-      const productSalesMap: Record<string, { id: string; name: string; category: string; image: string; qty: number; rev: number }> = {};
-      completedOrders.forEach(order => {
-        order.items.forEach(item => {
-          if (!productSalesMap[item.productId]) {
-            const foundProd = this.products.find(p => p.id === item.productId);
-            productSalesMap[item.productId] = {
-              id: item.productId,
-              name: item.productName,
-              category: foundProd?.category || 'menu',
-              image: item.image || foundProd?.image || '/coffee_img/1.png',
-              qty: 0,
-              rev: 0
-            };
-          }
-          productSalesMap[item.productId].qty += item.quantity;
-          productSalesMap[item.productId].rev += item.totalPrice;
-        });
+      monthlyBreakdown.push({
+        month: mNum,
+        label: `Tháng ${mNum}`,
+        total: mTotal,
+        orderCount: mCount
       });
-
-      topProducts = Object.values(productSalesMap)
-        .sort((a, b) => b.qty - a.qty)
-        .slice(0, 10)
-        .map(p => ({
-          productId: p.id,
-          productName: p.name,
-          category: p.category,
-          image: p.image,
-          totalQuantity: p.qty,
-          totalRevenue: p.rev
-        }));
     }
+
+    // 4. Current Month & Selected Year Aggregations
+    const currMonthReport = monthlyBreakdown.find(m => m.month === currentMonthNum);
+    monthRevenue = currMonthReport ? currMonthReport.total : 0;
+    yearRevenue = monthlyBreakdown.reduce((sum, m) => sum + m.total, 0);
+    totalCompletedOrders = monthlyBreakdown.reduce((sum, m) => sum + m.orderCount, 0);
+
+    // 5. Total Items Sold Year
+    if (hasLedger) {
+      const yearItemRecords = this.salesTransactionItems.filter(ti => {
+        const yStr = getVietnamYearMonth(ti.createdAt).slice(0, 4);
+        return parseInt(yStr, 10) === currentYear;
+      });
+      totalItemsSoldYear = yearItemRecords.reduce((sum, ti) => sum + Number(ti.quantity || 1), 0);
+    } else {
+      const yearLiveOrders = liveCompletedOrders.filter(o => {
+        const yStr = getVietnamYearMonth(o.completedAt).slice(0, 4);
+        return parseInt(yStr, 10) === currentYear;
+      });
+      const liveYearItems = yearLiveOrders.reduce((sum, o) =>
+        sum + o.items.reduce((isum, it) => isum + Number(it.quantity || 1), 0), 0
+      );
+      const snapshotYearItems = this.monthlyStatistics
+        .filter(s => s.month.startsWith(`${currentYear}-`))
+        .reduce((sum, s) => sum + s.itemsSold, 0);
+      totalItemsSoldYear = Math.max(liveYearItems, snapshotYearItems);
+    }
+
+    // 6. Top Selling Products Calculation (Filtered by selectedMonth if specified, or whole year)
+    const productSalesMap: Record<string, { id: string; name: string; category: string; image: string; qty: number; rev: number }> = {};
+
+    const targetMonthPrefix = selectedMonth
+      ? `${currentYear}-${String(selectedMonth).padStart(2, '0')}`
+      : `${currentYear}-`;
+
+    // Seed from snapshots for matching months
+    const matchingSnapshots = this.monthlyStatistics.filter(s =>
+      selectedMonth ? s.month === targetMonthPrefix : s.month.startsWith(targetMonthPrefix)
+    );
+    matchingSnapshots.forEach(snap => {
+      snap.productStats?.forEach(p => {
+        if (!productSalesMap[p.productId]) {
+          productSalesMap[p.productId] = {
+            id: p.productId,
+            name: p.productName,
+            category: p.category,
+            image: p.image,
+            qty: 0,
+            rev: 0
+          };
+        }
+        productSalesMap[p.productId].qty += p.quantity;
+        productSalesMap[p.productId].rev += p.revenue;
+      });
+    });
+
+    // Merge live orders for matching month/year (if not already represented)
+    const matchingLiveOrders = liveCompletedOrders.filter(o => {
+      const ym = getVietnamYearMonth(o.completedAt);
+      return selectedMonth ? ym === targetMonthPrefix : ym.startsWith(targetMonthPrefix);
+    });
+
+    // If no snapshot exists for live orders' months, accumulate live items
+    if (matchingSnapshots.length === 0 || matchingLiveOrders.length > 0) {
+      matchingLiveOrders.forEach(order => {
+        const oMonth = getVietnamYearMonth(order.completedAt);
+        const hasSnapForMonth = this.monthlyStatistics.some(s => s.month === oMonth);
+        if (!hasSnapForMonth) {
+          order.items.forEach(item => {
+            if (!productSalesMap[item.productId]) {
+              const foundProd = this.products.find(p => p.id === item.productId);
+              productSalesMap[item.productId] = {
+                id: item.productId,
+                name: item.productName,
+                category: foundProd?.category || 'menu',
+                image: item.image || foundProd?.image || '/coffee_img/1.png',
+                qty: 0,
+                rev: 0
+              };
+            }
+            productSalesMap[item.productId].qty += Number(item.quantity || 1);
+            productSalesMap[item.productId].rev += Number(item.totalPrice || (item.unitPrice * item.quantity));
+          });
+        }
+      });
+    }
+
+    topProducts = Object.values(productSalesMap)
+      .sort((a, b) => b.qty - a.qty || b.rev - a.rev)
+      .slice(0, 10)
+      .map(p => ({
+        productId: p.id,
+        productName: p.name,
+        category: p.category,
+        image: p.image,
+        totalQuantity: p.qty,
+        totalRevenue: p.rev
+      }));
 
     const aov = totalCompletedOrders > 0 ? Math.round(yearRevenue / totalCompletedOrders) : 0;
     const newOrdersCount = this.orders.filter(o => o.status === 'NEW').length;
     const preparingCount = this.orders.filter(o => o.status === 'PREPARING' || o.status === 'CONFIRMED').length;
     const readyCount = this.orders.filter(o => o.status === 'READY').length;
 
+    // Available Years
     const yearsSet = new Set<number>([now.getFullYear(), 2025, 2026]);
     this.salesTransactions.forEach(t => {
       if (t.confirmedAt) {
-        yearsSet.add(new Date(t.confirmedAt).getFullYear());
+        const y = parseInt(getVietnamYearMonth(t.confirmedAt).slice(0, 4), 10);
+        if (!isNaN(y)) yearsSet.add(y);
       }
     });
     this.orders.forEach(o => {
       if (o.completedAt) {
-        yearsSet.add(new Date(o.completedAt).getFullYear());
+        const y = parseInt(getVietnamYearMonth(o.completedAt).slice(0, 4), 10);
+        if (!isNaN(y)) yearsSet.add(y);
       }
     });
+    this.monthlyStatistics.forEach(s => {
+      const y = parseInt(s.month.slice(0, 4), 10);
+      if (!isNaN(y)) yearsSet.add(y);
+    });
     const availableYears = Array.from(yearsSet).sort((a, b) => b - a);
+
+    // Selected Month Detail if selected
+    let selectedMonthStats: MonthlyStatistics | null = null;
+    if (selectedMonth) {
+      const targetMStr = `${currentYear}-${String(selectedMonth).padStart(2, '0')}`;
+      selectedMonthStats = this.getMonthlyStatsDetail(targetMStr);
+    }
 
     return {
       todayRevenue,
@@ -2937,9 +3541,12 @@ class StoreService {
       monthlyBreakdown,
       topProducts,
       availableYears,
-      selectedYear: currentYear
+      selectedYear: currentYear,
+      selectedMonth: selectedMonth || null,
+      selectedMonthStats
     };
   }
 }
 
 export const storeService = new StoreService();
+
